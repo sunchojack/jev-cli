@@ -29,7 +29,7 @@ server.registerTool(
   'judge',
   {
     title: 'Judge with Jev',
-    description: 'Evaluate a state against typed questions (noul/choice/score) via TypeSafe Jev and return typed answers with probabilities.',
+    description: 'TypeSafe Jev judgment tool. Call ONLY when a typed, probabilistic judgment is explicitly required: a yes/no probability (noul), a single choice from a defined set with a probability distribution (choice), or a rating on a described scale (score) over some state. Do NOT use for general reasoning, summarising, answering prose questions, or anything you could answer with your own inference. Use it when the caller names Jev or when the downstream step needs a machine-actionable probability distribution with your own threshold, not a sentence. Pass the full content and a self-contained question per id; ask independent questions together.',
     inputSchema: z.object({
       state: z.unknown(),
       questions: z.record(questionSchema),
