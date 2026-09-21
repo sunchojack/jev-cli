@@ -4,6 +4,9 @@ A tiny Model Context Protocol (MCP) server that gives AI agents and other MCP
 clients access to TypeSafe's **Jev** — a model that answers questions with a
 probability distribution instead of prose.
 
+> Unofficial community CLI and MCP wrapper for TypeSafe Jev. Not affiliated
+> with or endorsed by TypeSafe.
+
 Two ways to use Jev here:
 
 - **CLI** — ask Jev from your terminal instead of writing a `curl` request.
