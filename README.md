@@ -4,17 +4,44 @@ A tiny MCP server that gives AI agents (and any MCP client) direct access to
 TypeSafe's **Jev** — a model that answers questions with a probability
 distribution instead of prose.
 
-**What it does:** exposes one tool, `judge(state, questions)`, which sends your
-input to Jev and returns a typed answer with probabilities (yes/no `noul`,
-`choice`, or `score`).
+Two ways to use Jev here:
 
-**What it is not:** this is not documentation. TypeSafe's "Jev skill" is a set of
+- **CLI** (`jev`) — ask Jev from your terminal (jev "is 2 = 2?"), rather that write a curl request manually.
+- **MCP server** (`judge`) — let an agent call it as a tool (save tokens on skill callup).
+
+## Why a CLI, not curl
+
+The raw TypeSafe API is callable with a single `curl`, but curl means managing
+a JSON body. This repo's `jev` CLI is meant to be easier to start with: it just needs a key (env or
+Keychain) plus a question and some state.
+
+Run `jev --help` anytime to see the full option list.
+
+```bash
+jev "Is this a Python import line?" --state "import pandas as pd"
+# → {"answer": {"type":"noul","noul":0.99}}
+```
+
+CLI startup: `node bin/jev.mjs` (or the `jev` symlink on PATH), key from
+`TYPESAFE_API_KEY` or macOS Keychain (service `typesafe-api-key`).
+
+## What the server does
+
+**Problem:** TypeSafe's "Jev skill" is a set of
 instructions that tells an agent *how* to call the Jev API — the agent still has
 to write the request, handle auth, and parse the response itself every time.
 `jev-mcp` packages all of that into a ready-made tool, so an agent just calls
-`judge` and gets the answer back.
+`judge` and gets the answer back. 
 
-## Quick start
+**What it does:** exposes one MCP tool, `judge(state, questions)`, which sends
+your input to Jev and returns a typed answer with probabilities (yes/no `noul`,
+`choice`, or `score`).
+
+**Gating:** `mcp__jev__judge` is opt-in, *not automatic* — an agent only invokes it
+when the caller explicitly asks for a Jev judgment or a machine-actionable
+probability distribution is required.
+
+## Register the MCP server in an agent
 
 Run it (any MCP client can spawn it):
 
@@ -22,19 +49,19 @@ Run it (any MCP client can spawn it):
 node index.js
 ```
 
-Or register it in your agent once, then use `judge` like any other tool:
+Register it once, then use `judge` like any other tool:
 
 - **opencode** — in `~/.config/opencode/opencode.json`:
   ```json
   "mcp": {
-    "jev": { "type": "local", "command": ["node", "/path/to/jev-mcp/index.js"], "enabled": true }
+    "jev": { "type": "local", "command": ["node", "/path/to/jev/index.js"], "enabled": true }
   }
   ```
 - **codex** — in `~/.codex/config.toml`:
   ```toml
   [mcp_servers.jev]
   command = "node"
-  args = ["/path/to/jev-mcp/index.js"]
+  args = ["/path/to/jev/index.js"]
   ```
 - Replace `/path/to/jev-mcp` with wherever you keep the repo.
 
