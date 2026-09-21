@@ -1,4 +1,4 @@
-# jev-mcp
+# jev-cli
 
 A tiny Model Context Protocol (MCP) server that gives AI agents and other MCP
 clients access to TypeSafe's **Jev** — a model that answers questions with a
@@ -17,16 +17,13 @@ Two ways to use Jev here:
 You need Node.js 20 or later and a TypeSafe API key.
 
 ```bash
-git clone https://github.com/sunchojack/jev-mcp.git
-cd jev-mcp
-npm install
-npm link
+npm install --global @sunchojack/jev-cli
 export TYPESAFE_API_KEY="your-key"
 jev "Is this a Python import line?" --state "import pandas as pd"
 ```
 
-`npm link` puts `jev` on your path. The last command prints Jev's answer as
-JSON.
+The install puts `jev` and `jev-mcp` on your path. The `jev` command prints
+Jev's answer as JSON.
 
 ## Why a CLI, not curl
 
@@ -74,16 +71,14 @@ Register it once, then use `judge` like any other tool:
 - **opencode** — in `~/.config/opencode/opencode.json`:
   ```json
   "mcp": {
-    "jev": { "type": "local", "command": ["node", "/path/to/jev/index.js"], "enabled": true }
+    "jev": { "type": "local", "command": ["jev-mcp"], "enabled": true }
   }
   ```
 - **codex** — in `~/.codex/config.toml`:
   ```toml
   [mcp_servers.jev]
-  command = "node"
-  args = ["/path/to/jev/index.js"]
+  command = "jev-mcp"
   ```
-Replace `/path/to/jev` with the absolute path to this repo.
 
 ## Auth
 
