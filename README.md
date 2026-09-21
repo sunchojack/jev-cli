@@ -1,142 +1,92 @@
 # jev-mcp
 
-Standalone MCP server exposing a single `judge` tool that calls TypeSafe's Jev
-(`POST https://api.typesafe.ai/v1/systemone`) and returns typed answers with
-probabilities. Not tied to any agent harness any client can consume it.
+A tiny MCP server that gives AI agents (and any MCP client) direct access to
+TypeSafe's **Jev** — a model that answers questions with a probability
+distribution instead of prose.
 
-## Startup
+**What it does:** exposes one tool, `judge(state, questions)`, which sends your
+input to Jev and returns a typed answer with probabilities (yes/no `noul`,
+`choice`, or `score`).
+
+**What it is not:** this is not documentation. TypeSafe's "Jev skill" is a set of
+instructions that tells an agent *how* to call the Jev API — the agent still has
+to write the request, handle auth, and parse the response itself every time.
+`jev-mcp` packages all of that into a ready-made tool, so an agent just calls
+`judge` and gets the answer back.
+
+## Quick start
+
+Run it (any MCP client can spawn it):
 
 ```bash
-node ~/.local/bin/jev-mcp/index.js
+node index.js
 ```
 
-No key needed in the environment. The server resolves the API key at startup,
-never printing it:
+Or register it in your agent once, then use `judge` like any other tool:
 
-1. `TYPESAFE_API_KEY` env var, if set
-2. macOS Keychain generic password, service `typesafe-api-key`, account `$USER`
-   (same source as the `secret-export TYPESAFE_API_KEY typesafe-api-key` line in
-   `~/.zshrc`)
+- **opencode** — in `~/.config/opencode/opencode.json`:
+  ```json
+  "mcp": {
+    "jev": { "type": "local", "command": ["node", "/path/to/jev-mcp/index.js"], "enabled": true }
+  }
+  ```
+- **codex** — in `~/.codex/config.toml`:
+  ```toml
+  [mcp_servers.jev]
+  command = "node"
+  args = ["/path/to/jev-mcp/index.js"]
+  ```
+- Replace `/path/to/jev-mcp` with wherever you keep the repo.
 
-Already verified live (empty env, straight from Keychain):
-`require("fs")` -> `is_js.noul = 0.97`
+## Auth
 
-## The tool: `judge`
+No environment setup needed on macOS: the key is read from the Keychain
+(service `typesafe-api-key`, account `$USER`). If `TYPESAFE_API_KEY` is set in
+the environment, that is used instead. The key is never printed.
 
-`judge(state, questions)` -> typed answers + probabilities
+## Using `judge`
 
-- `state`: string | object | array — the content to evaluate
-- `questions`: object map of `{ <id>: { type, instructions, criteria? } }`,
-  where `type` is `noul`, `choice`, or `score`
+`judge(state, questions)` — `state` is the content to judge (string, object, or
+array); `questions` is a map of `{ <id>: { type, instructions, criteria? } }`.
 
-It mirrors the TypeSafe API one-to-one; answer keys match the question ids you
-pass. Thresholds belong in the calling code, not the model.
-
-### Examples
-
-Noul (yes/no, returns `noul` 0..1):
+**Yes/no (noul):**
 ```json
 {
   "state": "import pandas as pd",
   "questions": { "is_py": { "type": "noul", "instructions": "Is this a Python import line?" } }
 }
 ```
+→ `{"is_py": {"type": "noul", "noul": 0.99}}`
 
-Choice (returns `choice` + `probabilities` + `confidence`):
+**Pick one of several (choice):**
 ```json
 {
-  "state": "Help! payouts failing for 3 days",
+  "state": "payouts failing for 3 days",
   "questions": {
     "dept": {
       "type": "choice",
-      "instructions": "Which team should handle this?",
+      "instructions": "Which team handles this?",
       "criteria": { "billing": "payments/refunds", "technical": "bugs/outages", "sales": "pricing" }
     }
   }
 }
 ```
+→ `{"dept": {"type": "choice", "choice": "technical", "probabilities": {"billing": 0.1, "technical": 0.88, "sales": 0.02}, "confidence": 0.84}}`
 
-Score (returns `score` + `legend` + `probabilities` + `confidence`):
+**Rate along a scale (score):**
 ```json
 {
-  "state": "Help! payouts failing for 3 days",
+  "state": "payouts failing for 3 days",
   "questions": {
     "frustration": { "type": "score", "instructions": "How frustrated is the customer?", "criteria": ["Calm", "Frustrated", "Very angry"] }
   }
 }
 ```
+→ `{"frustration": {"type": "score", "score": 1.05, "legend": {"0":"Calm","1":"Frustrated","2":"Very angry"}, "probabilities": {"0":0.0,"1":0.95,"2":0.05}, "confidence": 0.92}}`
 
-Call multiple independent questions in one `judge` call — Jev answers them in
-parallel and cannot see one another's answers.
-
-## How to call it
-
-### As an MCP tool (any agent)
-
-Point any MCP client at the server. It registers the tool as `judge` (clients
-that namespace tools, e.g. dsh, show it as `mcp__jev__judge`).
-
-One caveat: some clients scrub ambient `*KEY*` env vars when spawning stdio
-(dsh does). Since the server reads from Keychain, it works without an env key —
-but if you prefer env, set `TYPESAFE_API_KEY` in that client's `env`, not the
-ambient shell.
-
-### With a raw MCP client (node)
-
-```js
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-
-const transport = new StdioClientTransport({
-  command: process.execPath,
-  args: [new URL('index.js', import.meta.url).pathname],
-  env: {},  // empty: key comes from Keychain
-});
-const client = new Client({ name: 'c', version: '0.0.0' });
-await client.connect(transport);
-
-const res = await client.callTool({
-  name: 'judge',
-  arguments: { state: 'import pandas as pd', questions: { is_py: { type: 'noul', instructions: 'Is this a Python import line?' } } },
-});
-console.log(res.content[0].text);
-```
-
-## Forwarding agents to it
-
-The server is already registered in the local agent configs so they discover
-`judge` automatically (as `mcp__jev__judge` where the client namespaces):
-
-- **opencode** — `~/.config/opencode/opencode.json`:
-  ```json
-  "mcp": {
-    "jev": { "type": "local", "command": ["node", "/Users/aleksandrarsenev/.local/bin/jev-mcp/index.js"], "enabled": true }
-  }
-  ```
-- **codex** — `~/.codex/config.toml`:
-  ```toml
-  [mcp_servers.jev]
-  command = "node"
-  args = ["/Users/aleksandrarsenev/.local/bin/jev-mcp/index.js"]
-  ```
-
-For any other client (dsh profile, Claude Code, Cursor), register the same
-command/args:
-- command: `node`
-- args: `['/Users/aleksandrarsenev/.local/bin/jev-mcp/index.js']`
-- transport: `stdio`
-- env: (optional) `{ TYPESAFE_API_KEY: <key> }` only if you bypass Keychain
-
-Example dsh registration shape:
-```yaml
-- id: mcp-jev
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: jev
-    transport: stdio
-    command: node
-    args: ['/Users/aleksandrarsenev/.local/bin/jev-mcp/index.js']
-```
+Ask several independent questions in one `state` — they are answered in
+parallel. Set your own threshold in code (e.g. treat `noul >= 0.9` as yes);
+thresholds belong to the caller, not the model.
 
 ## Use cases
 
@@ -146,3 +96,9 @@ Example dsh registration shape:
 - Reranking / evidence relevance: judge candidate relevance, consume top ones
 - Composite scoring: score dimensions once, tune weights/thresholds in code
 - Extraction with selection: pick the intended value from candidates in source
+
+## Wire format
+
+The full request/response contract lives in the
+[TypeSafe API docs](https://docs.typesafe.ai/api). `judge` mirrors it; answer
+keys match the question ids you pass.
