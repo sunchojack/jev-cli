@@ -1,5 +1,5 @@
 {
-  "name": "jev-cli",
+  "name": "@sunchojack/jev-cli",
   "version": "0.1.0",
   "description": "Unofficial community CLI and MCP wrapper for TypeSafe Jev. Not affiliated with or endorsed by TypeSafe.",
   "type": "module",
