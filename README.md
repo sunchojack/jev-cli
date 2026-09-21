@@ -40,6 +40,48 @@ jev "Is this a Python import line?" --state "import pandas as pd"
 
 The CLI reads the key from `TYPESAFE_API_KEY` or the macOS Keychain.
 
+## CLI options
+
+The question is the only required argument:
+
+```bash
+jev "Is P = NP?"
+```
+
+- `--state "<content>"` — content to evaluate.
+- `--file <path>` — read the content to evaluate from a file instead.
+- `--type noul|choice|score` — judgment type; defaults to `noul`.
+- `--criteria "<values>"` — define the alternatives or scale; format depends
+  on the judgment type.
+- `--id <name>` — name the answer in the returned JSON; defaults to `answer`.
+- `--help` or `-h` — show the built-in help.
+
+Examples:
+
+```bash
+# verify a coding or data claim
+jev "Is this a Python import line?" --state "import polars as pl" --id is_import
+
+# classify an observation into a research category
+jev "Which mechanism best fits this trade-flow change?" \
+  --state "Exports rise while the unit value falls after a tariff reduction." \
+  --type choice \
+  --criteria "price|change driven by prices,quantity|change driven by quantities,composition|change driven by product mix" \
+  --id mechanism
+
+# score evidence on an ordinal scale
+jev "How strongly does this observation support the hypothesis?" \
+  --state "The estimated effect is positive in the baseline and four robustness specifications." \
+  --type score \
+  --criteria "Not at all,Partly,Strongly" \
+  --id support
+
+# evaluate a paper, note, or dataset saved on disk
+jev "Is this evidence relevant to the identification strategy?" \
+  --file evidence-note.md \
+  --id relevant
+```
+
 ## What the server does
 
 **Problem:** TypeSafe's "Jev skill" is a set of instructions that tells an
