@@ -1,45 +1,62 @@
 # jev-mcp
 
-A tiny MCP server that gives AI agents (and any MCP client) direct access to
-TypeSafe's **Jev** — a model that answers questions with a probability
-distribution instead of prose.
+A tiny Model Context Protocol (MCP) server that gives AI agents and other MCP
+clients access to TypeSafe's **Jev** — a model that answers questions with a
+probability distribution instead of prose.
 
 Two ways to use Jev here:
 
-- **CLI** (`jev`) — ask Jev from your terminal (jev "is 2 = 2?"), rather that write a curl request manually.
-- **MCP server** (`judge`) — let an agent call it as a tool (save tokens on skill callup).
+- **CLI** — ask Jev from your terminal instead of writing a `curl` request.
+- **MCP server** (`judge`) — let an MCP client call Jev as a tool.
+
+## Quick start
+
+You need Node.js 20 or later and a TypeSafe API key.
+
+```bash
+git clone https://github.com/sunchojack/jev-mcp.git
+cd jev-mcp
+npm install
+npm link
+export TYPESAFE_API_KEY="your-key"
+jev "Is this a Python import line?" --state "import pandas as pd"
+```
+
+`npm link` puts `jev` on your path. The last command prints Jev's answer as
+JSON.
 
 ## Why a CLI, not curl
 
-The raw TypeSafe API is callable with a single `curl`, but curl means managing
-a JSON body. This repo's `jev` CLI is meant to be easier to start with: it just needs a key (env or
-Keychain) plus a question and some state.
+The raw TypeSafe API is callable with a single `curl`, but `curl` means managing
+a JSON body. This repo's CLI takes a question and some state, then builds the
+request for you.
 
-Run `jev --help` anytime to see the full option list.
+Run `jev --help` to see the full option list.
 
 ```bash
 jev "Is this a Python import line?" --state "import pandas as pd"
 # → {"answer": {"type":"noul","noul":0.99}}
 ```
 
-CLI startup: `node bin/jev.mjs` (or the `jev` symlink on PATH), key from
-`TYPESAFE_API_KEY` or macOS Keychain (service `typesafe-api-key`).
+The CLI reads the key from `TYPESAFE_API_KEY` or the macOS Keychain.
 
 ## What the server does
 
-**Problem:** TypeSafe's "Jev skill" is a set of
-instructions that tells an agent *how* to call the Jev API — the agent still has
-to write the request, handle auth, and parse the response itself every time.
-`jev-mcp` packages all of that into a ready-made tool, so an agent just calls
-`judge` and gets the answer back. 
+**Problem:** TypeSafe's "Jev skill" is a set of instructions that tells an
+agent *how* to call the Jev API. The agent still has to write the request,
+handle authentication, and parse the response each time. `jev-mcp` packages
+that into a ready-made tool, so an agent calls `judge` and gets the answer.
+
+This does not replace the skill's guidance on when and how to use Jev. It gives
+an MCP client a direct tool for making the call.
 
 **What it does:** exposes one MCP tool, `judge(state, questions)`, which sends
 your input to Jev and returns a typed answer with probabilities (yes/no `noul`,
 `choice`, or `score`).
 
-**Gating:** `mcp__jev__judge` is opt-in, *not automatic* — an agent only invokes it
-when the caller explicitly asks for a Jev judgment or a machine-actionable
-probability distribution is required.
+The tool description tells agents to use `judge` only for an explicit Jev
+request or a machine-actionable probability distribution. The MCP client still
+controls whether the tool is available to the agent.
 
 ## Register the MCP server in an agent
 
@@ -63,13 +80,19 @@ Register it once, then use `judge` like any other tool:
   command = "node"
   args = ["/path/to/jev/index.js"]
   ```
-- Replace `/path/to/jev-mcp` with wherever you keep the repo.
+Replace `/path/to/jev` with the absolute path to this repo.
 
 ## Auth
 
-No environment setup needed on macOS: the key is read from the Keychain
-(service `typesafe-api-key`, account `$USER`). If `TYPESAFE_API_KEY` is set in
-the environment, that is used instead. The key is never printed.
+Set `TYPESAFE_API_KEY` before you start the CLI or MCP server:
+
+```bash
+export TYPESAFE_API_KEY="your-key"
+```
+
+On macOS, you can instead store the key in Keychain with service
+`typesafe-api-key` and account `$USER`. If both are available,
+`TYPESAFE_API_KEY` takes precedence. The key is not printed by this repo.
 
 ## Using `judge`
 
@@ -111,11 +134,14 @@ array); `questions` is a map of `{ <id>: { type, instructions, criteria? } }`.
 ```
 → `{"frustration": {"type": "score", "score": 1.05, "legend": {"0":"Calm","1":"Frustrated","2":"Very angry"}, "probabilities": {"0":0.0,"1":0.95,"2":0.05}, "confidence": 0.92}}`
 
-Ask several independent questions in one `state` — they are answered in
-parallel. Set your own threshold in code (e.g. treat `noul >= 0.9` as yes);
-thresholds belong to the caller, not the model.
+You can ask several independent questions about one `state` in the same
+request. Set your own threshold in code (for example, treat `noul >= 0.9` as
+yes). Thresholds belong to the caller, not the model.
 
-## Use cases
+## Patterns you can build
+
+This repo only sends judgments to Jev and returns the answers. Your code must
+implement any routing, ranking, or scoring workflow around those answers.
 
 - Routing / classification: pick a handler from a defined set
 - Verification / gates: noul checks over code or text ("is this a Python
