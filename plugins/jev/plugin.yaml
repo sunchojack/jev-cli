@@ -1,0 +1,12 @@
+name: jev
+version: "0.1.0"
+description: Advisory status, skill suggestions, failure triage, and explicit worker routing.
+config_schema:
+  enabled: {type: bool, default: true, description: Disable all Jev callbacks immediately.}
+  endpoint: {type: str, default: "https://llm.ascii.ac.at/typesafe/v1/systemone"}
+  key_env: {type: str, default: CSH_AGENTIC_CODING_KEY}
+  timeout_ms: {type: int, default: 5000, description: Decision deadline, capped at 12000 milliseconds.}
+  threshold: {type: float, default: 0.75}
+  max_skills: {type: int, default: 60, description: Maximum optional skill candidates; zero disables hints.}
+  cli_path: {type: str, default: "", description: Workflow CLI path; defaults to bin/jev-agent.mjs in the Jev repository.}
+  node_path: {type: str, default: node, description: Node executable name or absolute path.}

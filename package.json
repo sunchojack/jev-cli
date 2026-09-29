@@ -6,6 +6,7 @@
   "main": "index.js",
   "bin": {
     "jev": "bin/jev.mjs",
+    "jev-agent": "bin/jev-agent.mjs",
     "jev-mcp": "index.js"
   },
   "dependencies": {

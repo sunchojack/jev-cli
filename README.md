@@ -82,6 +82,112 @@ jev "Is this evidence relevant to the identification strategy?" \
   --id relevant
 ```
 
+## CSH Hermes integration
+
+The native [Hermes plugin](plugins/jev/__init__.py) uses
+`https://llm.ascii.ac.at/typesafe/v1/systemone` and selects the scoped secret
+`CSH_AGENTIC_CODING_KEY`. It resolves the CLI from the source checkout.
+Link the plugin and [shared skill](skills/jev/SKILL.md) to this checkout:
+
+```bash
+ln -s /home/arsenev/jev-cli/plugins/jev ~/.hermes/plugins/jev
+ln -s /home/arsenev/jev-cli/skills/jev ~/.codex/skills/jev
+hermes plugins enable jev
+```
+
+The parent directories must exist, and the link destinations must be unused.
+Gateway hot activation is available for plugin handlers. Never restart active
+sessions for installation. Existing CLI processes cannot externally reload
+plugin hooks. Watcher and terminal commands work immediately after enablement.
+Frozen tools and prompt sections wait for a new session.
+
+Plugin defaults come from source. Optional overrides use
+`plugins.entries.jev.settings` in the active Hermes profile:
+
+```yaml
+enabled: true
+endpoint: https://llm.ascii.ac.at/typesafe/v1/systemone
+key_env: CSH_AGENTIC_CODING_KEY
+timeout_ms: 5000
+threshold: 0.75
+max_skills: 60
+cli_path: ""  # Resolve bin/jev-agent.mjs from the checkout.
+node_path: node
+```
+
+The confidence threshold `0.75` is an initial, uncalibrated policy value.
+Jev has four roles:
+
+- **Routing:** select a launch-time model and reasoning level for an explicit worker.
+- **Status:** classify progress as advice. Native outcomes remain authoritative.
+- **Skills:** suggest optional skills without replacing mandatory instructions.
+- **Triage:** classify failures and possible verification gaps without controlling lifecycle.
+
+```bash
+hermes jev status
+hermes jev route < route.json
+hermes jev skills < task.json
+hermes jev triage < failure.json
+hermes jev evaluate < status-evidence.json
+hermes jev worker --harness hermes --cwd /absolute/workspace --prompt-file /absolute/task.txt --dry-run
+hermes jev worker --harness codex --cwd /absolute/workspace --prompt-file /absolute/task.txt
+hermes jev watch --once --include-codex
+hermes jev watch --interval 60
+```
+
+`route`, `skills`, `triage`, and `evaluate` read JSON objects from stdin.
+Each needs `task`, such as `{"task":"Inspect a small change","harness":"hermes"}`.
+`route` also needs `harness`. Optional evidence fields are `latest_output`,
+`error`, and `native_status`. `skills` discovers candidates unless supplied.
+`status` reads local events only. `evaluate` invokes the status classifier.
+
+`worker --harness hermes|codex` applies an explicit model, provider, and reasoning
+route to a new process. `--dry-run` prints the plan but can still call Jev.
+Without that flag, the command launches the worker. Uncertainty selects the deep
+Astra/high route. Stock `delegate_task` is not automatically routed.
+The watcher reads source databases read-only and records local observations.
+Changed snapshots can receive Jev advice. Codex snapshots cannot prove activity
+or completion. Completion claims mean ready for review, not verified success.
+
+For raw CLI requests, select the CSH transport explicitly:
+
+```bash
+export TYPESAFE_API_URL=https://llm.ascii.ac.at/typesafe/v1/systemone
+export TYPESAFE_API_KEY_ENV=CSH_AGENTIC_CODING_KEY
+jev --request request.json --full
+jev --request - --full < request.json
+```
+
+The selected key must exist in the CLI environment. `--request FILE|-` accepts
+native `{state, questions, model?}` JSON. `--full` preserves response metadata,
+including model and usage, alongside answers and their probabilities.
+
+### Local watcher service
+
+This machine runs the watcher through `hermes-jev-watch.service` in the user service manager.
+It scans every 60 seconds and classifies at most six changed sessions per scan.
+The activity window is 30 minutes. The service includes Codex snapshots.
+
+```bash
+systemctl --user status hermes-jev-watch.service
+journalctl --user -u hermes-jev-watch.service -n 10 --no-pager
+```
+
+The service file is `~/.config/systemd/user/hermes-jev-watch.service`.
+It starts a separate observer. It does not restart Hermes or control workers.
+
+### Repeat the checks
+
+```bash
+node --test tests/transport.test.mjs tests/workflows.test.mjs
+~/.hermes/hermes-agent/venv/bin/python -B tests/hermes_plugin_integration.py --plugin plugins/jev --artifact node_modules/.cache/hermes-integration.json
+~/.hermes/hermes-agent/venv/bin/python -B tests/watch_integration.py --plugin plugins/jev --artifact node_modules/.cache/watch-integration.json
+python3 tests/live_smoke.py --artifact node_modules/.cache/live-smoke.json
+```
+
+The first three checks use local fixtures. The live check calls CSH Jev and starts a separate Hermes worker with a synthetic prompt.
+Its JSON artifact records all four decisions, the selected worker route, the worker response, and the watcher result.
+
 ## What the server does
 
 **Problem:** TypeSafe's "Jev skill" is a set of instructions that tells an
@@ -180,8 +286,8 @@ yes). Thresholds belong to the caller, not the model.
 
 ## Patterns you can build
 
-This repo only sends judgments to Jev and returns the answers. Your code must
-implement any routing, ranking, or scoring workflow around those answers.
+The core CLI and MCP server send judgments to Jev and return the answers.
+The Hermes integration adds the workflows described above. Other callers can build:
 
 - Routing / classification: pick a handler from a defined set
 - Verification / gates: noul checks over code or text ("is this a Python

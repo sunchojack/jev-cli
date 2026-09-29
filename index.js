@@ -1,22 +1,8 @@
 #!/usr/bin/env node
-import { execFileSync } from 'node:child_process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-
-const API_URL = 'https://api.typesafe.ai/v1/systemone';
-const MODEL = 'jev-latest';
-
-function apiKey() {
-  if (process.env.TYPESAFE_API_KEY) return process.env.TYPESAFE_API_KEY;
-  try {
-    return execFileSync('security', ['find-generic-password', '-a', process.env.USER, '-s', 'typesafe-api-key', '-w'], { encoding: 'utf8' }).trim();
-  } catch {
-    throw new Error('TypeSafe API key not found (set TYPESAFE_API_KEY or store it in Keychain as service typesafe-api-key)');
-  }
-}
-
-const KEY = apiKey();
+import { evaluate } from './lib/client.mjs';
 
 const questionSchema = z.object({
   type: z.enum(['noul', 'choice', 'score']),
@@ -34,17 +20,11 @@ server.registerTool(
     inputSchema: z.object({
       state: z.unknown(),
       questions: z.record(questionSchema),
+      model: z.string().optional(),
     }),
   },
   async (args) => {
-    const questions = z.record(questionSchema).parse(args.questions);
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${KEY}` },
-      body: JSON.stringify({ state: args.state, model: MODEL, questions }),
-    });
-    if (!res.ok) throw new Error(`TypeSafe API ${res.status}: ${await res.text()}`);
-    const data = await res.json();
+    const data = await evaluate(args, { keychain: true });
     return { content: [{ type: 'text', text: JSON.stringify(data.answers) }] };
   },
 );
