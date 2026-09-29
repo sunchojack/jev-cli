@@ -10,174 +10,138 @@ metadata:
 
 # Jev Skill
 
-Jev supplies advisory status, optional skill suggestions, and failure classifications.
-The Node launcher selects the model and reasoning level before an explicit worker launch.
-Code owns lifecycle decisions. Native completion, failure, and interruption facts always take precedence over Jev predictions.
-
-## When to Use
-
-- Inspect recent local supervision events.
-- Select a launch-time route for a new, explicitly requested worker.
-- Request optional skill suggestions or classify a failure or review concern.
+Use Jev to inspect supervision events, route an authorized worker, suggest optional skills, or classify failures.
+The Node launcher selects a route before launch. Native completion, failure, and interruption facts take precedence over Jev predictions.
+Jev advice never establishes verified success or controls lifecycle decisions.
 
 ## Prerequisites
 
-The native Jev plugin must be enabled for the active Hermes profile.
-Node and `bin/jev-agent.mjs` must exist in the Jev checkout.
-Hermes resolves `CSH_AGENTIC_CODING_KEY` through its scoped secret API.
-An explicit Hermes worker receives this scoped key even when `key_env` selects a different Jev credential.
-The default endpoint is `https://llm.ascii.ac.at/typesafe/v1/systemone`.
-An explicit Codex worker also receives the scoped `CSH_OPENAI_PULL_THROUGH_TOKEN` for the `csh_openai_pull_through` provider.
-The launcher preserves `HOME`, the active `HERMES_HOME`, and the scoped `CODEX_HOME` override when present.
-It does not modify the launch profile or provider configuration.
+Enable the native Jev plugin in the active Hermes profile. The checkout must contain Node-accessible `bin/jev-agent.mjs`.
+The plugin resolves its checkout through symlinks and registers this skill as `jev:jev`.
+If you copy the plugin elsewhere, set `cli_path` explicitly.
 
-Plugin configuration lives under `plugins.entries.jev.settings`:
+Optional configuration under `plugins.entries.jev.settings`:
 
 ```yaml
-plugins:
-  enabled: [jev]
-  entries:
-    jev:
-      settings:
-        enabled: true
-        endpoint: https://llm.ascii.ac.at/typesafe/v1/systemone
-        key_env: CSH_AGENTIC_CODING_KEY
-        timeout_ms: 5000
-        threshold: 0.75
-        max_skills: 60
-        # cli_path: /absolute/path/to/jev-cli/bin/jev-agent.mjs
-        # node_path: /absolute/path/to/node
+enabled: true
+endpoint: https://llm.ascii.ac.at/typesafe/v1/systemone
+key_env: CSH_AGENTIC_CODING_KEY
+timeout_ms: 5000
+threshold: 0.75
+max_skills: 60
+# cli_path: /absolute/path/to/jev-cli/bin/jev-agent.mjs
+# node_path: /absolute/path/to/node
 ```
 
-The plugin resolves the checkout from its own file location, including symlinks.
-If the plugin directory is copied elsewhere, configure `cli_path` explicitly.
-The plugin registers this skill as `jev:jev` when the checkout skill file exists.
+Hermes resolves credentials through its scoped secret API. Hermes workers receive scoped `CSH_AGENTIC_CODING_KEY`, independently of `key_env`.
+Codex workers receive scoped `CSH_OPENAI_PULL_THROUGH_TOKEN` for `csh_openai_pull_through`.
+The launcher preserves `HOME`, active `HERMES_HOME`, and any scoped `CODEX_HOME` override without changing profile or provider configuration.
 
 ## How to Run
 
-Use `terminal` for these commands. Use `write_file` to prepare short JSON inputs and worker prompt files.
-Replace the example paths with actual files and directories.
+Use `terminal` for commands and `write_file` for short JSON inputs and worker prompts. Replace example paths before use.
 
 ```sh
 hermes jev status
-hermes jev watch --once
-hermes jev watch --interval 60
+hermes jev models
 hermes jev route < /absolute/path/route.json
 hermes jev skills < /absolute/path/task.json
 hermes jev triage < /absolute/path/failure.json
 hermes jev evaluate < /absolute/path/status-evidence.json
+hermes jev watch --once
+hermes jev watch --interval 60
 hermes jev worker --harness hermes --cwd /absolute/workspace --prompt-file /absolute/path/task.txt --dry-run
-hermes jev worker --harness hermes --cwd /absolute/workspace --prompt-file /absolute/path/task.txt
-hermes jev worker --harness codex --cwd /absolute/workspace --prompt-file /absolute/path/review.txt --read-only
+hermes jev worker --harness codex --cwd /absolute/workspace --prompt-file /absolute/path/review.txt --read-only --dry-run
 ```
 
-Input examples:
+Decision commands read a JSON object with `task`. `route` also requires `harness`:
 
 ```json
 {"task":"Inspect a small Python change","harness":"hermes"}
 ```
 
-```json
-{"task":"Find useful optional skills for this Python change"}
+Optional evidence fields: `latest_output`, `error`, `native_status`.
+`skills` obtains the Hermes roster unless input supplies `candidates` with `name` and `description`.
+Local lexical matching ranks the optional shortlist without a model call. Mandatory workflows remain excluded and authoritative.
+`evaluate` calls the Node status classifier. `status` reads local events. `/jev` shows status and instructions without launching work.
+
+## Route Inventory and Explicit Selection
+
+`hermes jev models` lists the configured route inventory, not verified provider access.
+By default, `route` and `worker` discover local Hermes providers and models, including configured Aqueduct and CodexLB entries.
+Codex workers use compatible configured entries for their harness.
+Discovery uses configuration names. Capability descriptions remain unverified, with no assumed price or quality ranking.
+
+Optional plugin `routes` is a dictionary by harness: `{hermes: [...], codex: [...]}`.
+Edit these catalogs to supply trusted capability descriptions and a conservative fallback.
+Standalone Node accepts a catalog array through `JEV_ROUTES_JSON`.
+Each entry has `id`, `model`, `provider`, `reasoning`, and `description`. Exactly one entry per catalog must have `fallback: true`.
+Malformed explicit catalogs fail loudly instead of silently selecting defaults.
+Without an available catalog, the three built-in routes are Luna/medium, Sol/medium, and Astra/high. Their fallback is Astra/high.
+With a catalog, uncertainty uses its designated fallback. `route` never changes a running session.
+
+Worker selection: `--model ID [--provider NAME] --reasoning none|minimal|low|medium|high|xhigh|max|ultra|inherit`.
+Catalog model IDs are not restricted to the three built-in families.
+If a model occurs under multiple providers, specify `--provider`.
+An explicit model selection bypasses Jev and preserves the supplied model, provider, and reasoning.
+`inherit` omits reasoning overrides from the worker command so the harness retains its own configuration.
+
+Prepare `task.txt`, then inspect this Aqueduct example:
+
+```sh
+hermes jev worker --harness hermes --cwd "$PWD" --prompt-file task.txt \
+  --provider csh-aqueduct --model tu_aq_deepseek-v4-flash-284b --reasoning inherit --dry-run
 ```
 
-```json
-{"task":"Review the failed build","error":"Compiler reports a missing dependency"}
-```
+Dry-run prints the plan without launching a worker. Automatic routing can still call Jev.
+If provider access works, repeat the command without `--dry-run` for an authorized real request.
+A dry-run does not verify access. A known CodexLB HTTP 401 means its configured entries are not verified accessible.
+`--read-only` selects the Codex read-only sandbox. Hermes rejects this flag because its file tools permit writes.
 
-```json
-{"task":"Review worker progress","native_status":"failed","latest_output":"Build failed"}
-```
+## Worker Procedure
 
-`skills` obtains the current Hermes roster unless the JSON supplies `candidates` with `name` and `description` fields.
-Local lexical matching ranks optional skill names and descriptions against the current task before the shortlist limit applies.
-This ranking makes no model call. Jev receives the shortlist and the catalog, eligible, and shortlist counts.
-Mandatory workflows remain excluded from optional suggestions. A suggestion never replaces required instructions.
-`evaluate` calls the Node status classifier. `status` reads only local persisted events.
-`/jev` shows local status and instructions. It never launches work.
+1. Read task instructions and native status. Use `research-guardian` and `freeze-clues` to establish the applicable task contract.
+2. Put scope, invariants, required checks, and expected evidence in the worker prompt. For Python work, reference `dignified-python`.
+3. Inspect `models`, then run `worker --dry-run`. Preserve explicit selections and resolve provider ambiguity before launch.
+4. If authorized and provider access works, launch the worker through the supported harness CLI.
+5. Use `hunt-faults` for independent review against the contract. Inspect actual check results and artifacts before reporting success.
+6. Use `seal-records` only for explicitly authorized landing work. Worker completion grants no commit, push, or merge authority.
 
-### Read-only supervision
+Load these installed skills by name, not relative sibling paths. Applicable instructions determine their use, not Jev suggestions.
+If an optional suggestion fits, load it with `skill_view`. `pensieve` memory is optional and never a prerequisite.
 
-`watch --once` reads recent sessions from the active profile's Hermes `state.db` and records one observation pass.
-`watch --interval 60` repeats that pass every 60 seconds until interrupted.
-The command runs explicitly in the foreground. Hooks never start it automatically.
-The watcher opens source databases read-only. It covers already-running sessions without attaching to their processes or changing their models.
-Changed snapshots can receive bounded Jev status advice. Unchanged snapshots use local checkpoints instead of another request.
-`--include-codex` enables optional Codex snapshots. These snapshots do not establish whether a Codex session is active or complete.
+## Native Supervision
 
-### Native activity hooks
+`watch --once` reads recent sessions from the active profile's Hermes `state.db` and records one pass.
+`watch --interval 60` repeats in the foreground until interrupted. Hooks never start the watcher.
+Source databases open read-only. The watcher neither attaches to processes nor changes their models.
+Changed snapshots can receive bounded advice. Unchanged snapshots use local checkpoints without another request.
+`--include-codex` adds snapshots that cannot establish Codex activity or completion.
 
-| Hook | Recorded evidence |
-|---|---|
-| `subagent_start` | Child started, with parent and child session IDs. |
-| `pre_api_request` | API activity, sampled per session without a Jev request. |
-| Successful `post_tool_call` | Tool progress, sampled per session without a Jev request. |
-| Failed `post_tool_call` | Native failure and optional triage from a bounded, redacted error or output excerpt. |
-| `pre_approval_request` | Approval waiting, with attention required. |
-| `post_approval_response` | Approval response and end of that wait, without granting approval. |
-| `api_request_error` | Native failure reason and optional triage, stored separately. |
-| `subagent_stop` | Native child outcome, plus optional status and triage advice. |
-| `pre_llm_call` | Optional skill suggestions. |
-| `pre_verify` | Advisory verification triage. |
-| `on_session_end` | Explicit native turn outcome fields. |
+Hooks record native child outcomes, activity, failures, approval waits, responses, and explicit turn outcomes.
+API and successful tool activity use local sampling without Jev calls. Failures and child stops can receive separate advice.
+Later activity or completion does not resolve earlier attention or failure evidence. Native completion still requires review.
 
-Activity sampling permits one fact of each sampled kind per session every five seconds.
-Local status retains timestamped attention and failure evidence. Later activity or completion does not prove that an earlier problem is resolved.
-Native completion still requires review. It does not establish verified success.
+## Boundaries
 
-## Quick Reference
-
-| Lane | Model family | Reasoning |
-|---|---|---|
-| routine | Luna | medium |
-| standard | Sol | medium |
-| deep | Astra | high |
-
-The Node launcher selects explicit harness-specific provider and model identifiers.
-Uncertainty selects the deep route. `route` alone supplies advice and never changes a running session.
-
-## Procedure
-
-1. Read the task instructions and native status first.
-2. Use local `status` for recorded facts.
-3. Send only short, relevant evidence for a decision.
-4. If a skill suggestion is relevant, load it with `skill_view`.
-5. Preserve mandatory instructions and required workflows regardless of the suggestions.
-6. For an authorized worker, prepare the prompt file with `write_file`.
-7. Run `worker --dry-run` to inspect the planned route and command.
-8. Run `worker` to launch the new process through the supported harness CLI.
-9. Evaluate its returned evidence before you report success.
-
-## Pitfalls
-
-- Existing sessions can use these commands immediately through their existing `terminal` tool after installation.
-- Existing sessions are not auto-adopted. Stock `delegate_task` does not use Jev routing.
-- Gateway plugin hot-load activates handlers. Frozen tools and prompt sections wait for a new session.
-- Hooks never launch workers, grant approvals, retry, stop sessions, send chat messages, or change boards.
-- `pre_verify` records advice and returns `None`. It never requests continuation or blocks completion.
-- Verification advice includes up to 1,600 characters from the final response, with paths and code blocks omitted.
-- Explicit hook task or criteria fields contribute up to 600 characters each. Current Hermes supplies no separate task or criteria fields.
-- These excerpts are claims for triage, not proof that checks passed. Missing evidence remains unknown.
-- Hooks fail soft. Duplicate decisions, rapid repeated events, and endpoint failures suppress further calls temporarily.
-- Successful decision identities expire after five minutes. Repeated duplicates do not extend that deadline.
-- Decision identities include turn, tool-call, and API-request IDs. Failed attempts release their identities for retry after cooldown.
-- Low-confidence advice does not start an outage cooldown. Network, timeout, HTTP, and invalid-response failures start a 30-second cooldown.
-- Decision calls have a maximum 12-second deadline. Explicit workers have no plugin-imposed execution deadline.
-- SQLite writers serialize with a two-second lock deadline. Lock errors skip the observation without blocking a tool.
-- Set `settings.enabled: false` to stop callbacks at their next invocation. Set `max_skills: 0` to disable skill hints only.
-- Do not include credentials, full prompts, complete tool output, or provider request objects in decision inputs.
+- Existing sessions can use terminal commands after installation. Stock `delegate_task` is not automatically routed, and sessions are not auto-adopted.
+- Gateway hot-load activates handlers. Frozen tools and prompt sections wait for a new session.
+- Hooks never launch workers, grant approvals, retry workers, stop sessions, send chat messages, or change boards.
+- `pre_verify` returns `None`. It neither requests continuation nor blocks completion.
+- Verification triage uses at most 1,600 response characters without paths or code blocks. These claims do not prove checks passed.
+- Missing evidence remains unknown. Current Hermes supplies no separate task or criteria fields to verification hooks.
+- Hooks fail soft. Duplicate decisions, rapid events, and endpoint failures temporarily suppress calls. Low confidence does not start an outage cooldown.
+- Decision calls have a maximum 12-second deadline. Workers have no plugin-imposed execution deadline. Nested Jev workers are disabled.
+- SQLite writers serialize with a two-second lock deadline. Lock errors skip observations without blocking tools.
+- Set `enabled: false` to stop callbacks at their next invocation. Set `max_skills: 0` to disable skill hints only.
+- Exclude credentials, full prompts, complete tool output, and provider request objects from decision inputs.
 
 ## Verification
 
-Use `hermes jev status` to inspect the profile-local SQLite event summary.
-The database is `<HERMES_HOME>/state/jev/events.sqlite3`, with fewer than 1,000 metadata events and at most 512 guards.
-Each event's JSON occupies at most 4,096 bytes. Retained event JSON occupies at most 2,000,000 bytes in total.
-The plugin prunes before insertion to reserve space. These limits bound logical event data, not SQLite file size or filesystem capacity.
-Events retain unique IDs, timestamps, process IDs, native facts, and available model, usage, route, confidence, and probability metadata.
-Probability metadata retains the five highest valid probabilities and the original entry count.
-Successful Node judgments supply Jev model, usage, and probabilities. Local shortcuts and unavailable judgments can omit these fields.
-Skill events also retain catalog, eligible, and shortlist counts. Fallback events retain recognized reason codes.
-They exclude prompt text, tool output, error bodies, and keys.
-Native outcomes and predicted classifications remain separate. A reduced legacy exit event does not establish a turn outcome.
-Native child `error`, `failed`, `blocked`, `interrupted`, `timeout`, `timed_out`, `crashed`, and `cancelled` states remain authoritative despite optimistic predictions.
-Recognized API reasons, including `auth`, `billing`, `rate_limit`, and `upstream_blocked`, remain separate `native_reason` facts.
+`hermes jev status` summarizes `<HERMES_HOME>/state/jev/events.sqlite3`.
+The store retains fewer than 1,000 metadata events. Limits bound logical data, not SQLite file size or filesystem capacity.
+Events retain IDs, timestamps, process IDs, native facts, and available model, usage, route, confidence, and probability metadata.
+Local shortcuts and unavailable judgments can omit evaluator metadata. Stored events exclude prompts, tool output, error bodies, and keys.
+Native outcomes and predictions remain separate. Reduced legacy exit events do not establish turn outcomes.
+Native `error`, `failed`, `blocked`, `interrupted`, `timeout`, `timed_out`, `crashed`, and `cancelled` remain authoritative despite optimistic predictions.
+API reasons such as `auth`, `billing`, `rate_limit`, and `upstream_blocked` remain separate `native_reason` facts.

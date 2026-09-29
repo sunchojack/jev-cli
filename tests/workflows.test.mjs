@@ -12,6 +12,14 @@ import { fileURLToPath } from 'node:url';
 // Corrected contract: Hermes read-only must reject before fetch/spawn; normal deep launches remain supported.
 // Additional failures: lost evaluator provenance, descriptive "model" treated as a pin, unsupported pins silently ignored.
 // Reviewed failures: native failure aliases contact Jev; negation/short/provider pins misroute; Hermes query lacks quiet mode.
+// Catalog/explicit-route failure inventory (test-first, CLI integration only):
+// - Catalogs are ignored, truncated, case-folded, or mixed with the three legacy lane IDs.
+// - Low confidence, outages, or fabricated choices escape the single declared catalog fallback.
+// - Invalid JSON/schema, duplicate IDs, >100 entries, or missing/multiple fallbacks reach fetch/spawn.
+// - Explicit pins bypass catalog validation/membership, guess an ambiguous provider, or contact Jev.
+// - Custom identifiers lose case/punctuation; unsafe model/provider values reach a worker/config argument.
+// - Reasoning values are narrowed, inherit is forwarded literally, or Codex config values lack JSON quoting.
+// Contract: env only; exactly one fallback:true; provider needs model; all nine reasoning values in both harnesses.
 const root = fileURLToPath(new URL('../', import.meta.url));
 const exec = promisify(execFile);
 const guard = 'data:text/javascript,' + encodeURIComponent(`
@@ -63,7 +71,9 @@ async function endpoint(t, selected, confidence = 0.95, fault, provenance = { mo
       if (q.type === 'noul') return [id, { type: 'noul', noul: selected === 'none' ? 0.01 : 0.99 }];
       const keys = Object.keys(q.criteria ?? {});
       const choice = selected === 'none' ? keys.find(key => /^(none|no_skills?)$/i.test(key)) ?? 'none' : selected;
-      return [id, { type: 'choice', choice, confidence, probabilities: Object.fromEntries(keys.map(key => [key, key === choice ? (keys.length === 1 ? 1 : 0.99) : 0.01 / Math.max(1, keys.length - 1)])) }];
+      // An unknown choice must be the only response defect, not an invalid probability sum too.
+      const winner = keys.includes(choice) ? choice : keys[0];
+      return [id, { type: 'choice', choice, confidence, probabilities: Object.fromEntries(keys.map(key => [key, key === winner ? (keys.length === 1 ? 1 : 0.99) : 0.01 / Math.max(1, keys.length - 1)])) }];
     }));
     res.setHeader('content-type', 'application/json');
     res.end(JSON.stringify({ ...provenance, answers }));
@@ -273,5 +283,250 @@ test('negated, short, provider-qualified and prose-adjacent pins never silently 
     const records = (await readFile(worker.capture, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
     assert.equal(records.length, needsModel ? 1 : 2); assert.equal(flag(records.at(-1).args, '-m', '--model'), canonical);
     assert.equal(records.at(-1).cwd, worker.cwd); assert.ok(records.at(-1).args.includes(task) || records.at(-1).input === task);
+  });
+});
+
+// Independent fixture values deliberately differ from the legacy model/provider families.
+function catalogFixture() {
+  return [
+    { id: 'Aqueduct.Fast', model: 'Team/Aqueduct:v2.1_Custom-model', provider: 'Aqueduct/Primary:v1.2_pool-test', reasoning: 'low', description: 'Quick bounded implementation.' },
+    { id: 'aqueduct.fast', model: 'team/aqueduct-v2.1_custom', provider: 'Aqueduct:Secondary.v1_pool', reasoning: 'medium', description: 'General implementation.', fallback: false },
+    { id: 'Catalog.Safe', model: 'Team/Anchor-v3', provider: 'Local:Reserve.v2_pool', reasoning: 'inherit', description: 'Conservative fallback for uncertainty.', fallback: true },
+  ];
+}
+const catalogEnv = entries => ({ JEV_ROUTES_JSON: JSON.stringify(entries) });
+const reasoningValues = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra', 'inherit'];
+function assertCatalogRoute(value, entry, fallback) {
+  assert.equal(value.kind, 'route'); assert.equal(value.fallback, fallback);
+  for (const key of ['id', 'model', 'provider', 'reasoning']) assert.equal(value.route[key], entry[key], key);
+}
+function assertCatalogQuestion(calls, entries) {
+  assert.equal(calls.length, 1);
+  const questions = Object.values(calls[0].questions);
+  assert.equal(questions.length, 1); assert.equal(questions[0].type, 'choice');
+  assert.deepEqual(Object.keys(questions[0].criteria).sort(), entries.map(entry => entry.id).sort());
+  for (const entry of entries) assert.ok(JSON.stringify(questions[0].criteria[entry.id]).includes(entry.description), entry.id);
+}
+async function auditEvents(worker) {
+  return (await readFile(worker.env.TEST_AUDIT, 'utf8')).trim().split('\n').map(line => JSON.parse(line).event);
+}
+async function assertRejectedBeforeEffects(command, state, env, flags, worker, calls, diagnostic) {
+  await assert.rejects(run(command, state, { ...env, ...worker.env }, flags), error => {
+    assert.equal(error.code, 1); assert.equal(error.killed, false); assert.equal(error.stdout, '');
+    assert.match(error.stderr, diagnostic); return true;
+  });
+  assert.deepEqual(calls, []); assert.deepEqual(await auditEvents(worker), ['preload']);
+  await assert.rejects(access(worker.capture), { code: 'ENOENT' });
+  await assert.rejects(access(worker.marker), { code: 'ENOENT' });
+}
+function workerFlags(worker, harness) {
+  return ['--harness', harness, '--cwd', worker.cwd, '--prompt-file', worker.file];
+}
+function assertWorkerArgs(args, harness, expected, prompt) {
+  assert.equal(flag(args, '-m', '--model'), expected.model);
+  assert.equal(args.filter(arg => ['-m', '--model'].includes(arg)).length, 1);
+  if (harness === 'hermes') {
+    assert.equal(flag(args, '--provider'), expected.provider);
+    assert.equal(args.filter(arg => arg === '--provider').length, 1);
+    assert.ok(args.includes('chat')); assert.ok(args.includes('-Q')); assert.equal(flag(args, '-q', '--query'), prompt);
+    if (expected.reasoning === 'inherit') assert.ok(!args.some(arg => /^--reasoning(?:=|$)/.test(arg)));
+    else { assert.equal(flag(args, '--reasoning'), expected.reasoning); assert.equal(args.filter(arg => arg === '--reasoning').length, 1); }
+  } else {
+    assert.ok(args.includes('exec'));
+    const configs = args.filter((_, i) => ['-c', '--config'].includes(args[i - 1]));
+    assert.deepEqual(configs.filter(arg => /^model_provider\s*=/.test(arg)), [`model_provider=${JSON.stringify(expected.provider)}`]);
+    const reasoning = configs.filter(arg => /^model_reasoning_effort\s*=/.test(arg));
+    assert.deepEqual(reasoning, expected.reasoning === 'inherit' ? [] : [`model_reasoning_effort=${JSON.stringify(expected.reasoning)}`]);
+    if (expected.reasoning === 'inherit') assert.ok(!args.some(arg => /model_reasoning_effort\s*=/.test(arg)));
+  }
+}
+async function exerciseWorker(worker, harness, env, expected, extraFlags, calls, requestsPerRun = 0) {
+  const flags = [...workerFlags(worker, harness), ...extraFlags];
+  const configured = { ...env, ...worker.env };
+  const { value: dry } = await run('worker', undefined, configured, [...flags, '--dry-run']);
+  assert.equal(dry.cwd, worker.cwd); assert.equal(basename(dry.command), harness);
+  for (const key of ['model', 'provider', 'reasoning']) assert.equal((dry.route.route ?? dry.route)[key], expected[key], key);
+  if (expected.id !== undefined) assert.equal((dry.route.route ?? dry.route).id, expected.id);
+  assertWorkerArgs(dry.args, harness, expected, worker.prompt);
+  assert.equal(calls.length, requestsPerRun);
+  assert.deepEqual(await auditEvents(worker), ['preload', ...Array(requestsPerRun).fill('fetch')]);
+  await assert.rejects(access(worker.capture), { code: 'ENOENT' });
+  const result = await run('worker', undefined, configured, flags);
+  assert.equal(result.stdout.trim(), 'fixture last worker output');
+  const records = (await readFile(worker.capture, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  assert.equal(records.length, 1); assert.equal(records[0].cwd, worker.cwd);
+  assertWorkerArgs(records[0].args, harness, expected, worker.prompt);
+  assert.ok(records[0].args.includes(worker.prompt) || records[0].input === worker.prompt);
+  const receipt = result.stderr.trim().split('\n').map(line => JSON.parse(line)).find(value => value.kind === 'route');
+  assert.ok(receipt);
+  for (const key of ['model', 'provider', 'reasoning']) assert.equal(receipt.route[key], expected[key], key);
+  if (expected.id !== undefined) assert.equal(receipt.route.id, expected.id);
+  assert.equal(calls.length, requestsPerRun * 2);
+  assert.deepEqual(await auditEvents(worker), ['preload', ...Array(requestsPerRun).fill('fetch'), 'process']);
+  await assert.rejects(access(worker.marker), { code: 'ENOENT' });
+}
+
+test('catalog route sends exact case-sensitive IDs and selects each entry at the confidence threshold', async t => {
+  const entries = catalogFixture();
+  for (const harness of ['hermes', 'codex']) for (const entry of entries) await t.test(`${harness}/${entry.id}`, async t => {
+    const { env, calls } = await endpoint(t, entry.id, 0.75);
+    const { value } = await run('route', { task: 'catalog-001: inspect this change', harness }, { ...env, ...catalogEnv(entries) });
+    assertCatalogQuestion(calls, entries); assertCatalogRoute(value, entry, false);
+  });
+});
+test('catalog route accepts one through 100 entries without truncating candidates', async t => {
+  for (const size of [1, 100]) await t.test(String(size), async t => {
+    const entries = Array.from({ length: size }, (_, index) => ({ ...catalogFixture()[0], id: `Route.${index}`, model: `Team/Aqueduct-${index}`, fallback: index === 0 }));
+    const selected = entries.at(-1);
+    const { env, calls } = await endpoint(t, selected.id);
+    const { value } = await run('route', { task: 'catalog-size', harness: 'codex' }, { ...env, ...catalogEnv(entries) });
+    assertCatalogQuestion(calls, entries); assertCatalogRoute(value, selected, false);
+  });
+});
+test('catalog route uses only the declared fallback for uncertainty, fabricated choices and transport failures', async t => {
+  const entries = catalogFixture(), fallback = entries[2];
+  for (const harness of ['hermes', 'codex']) for (const fault of ['low', 'fabricated', 'legacy-deep', 'wrong-case', 'outage', 'network', 'timeout', 'malformed', 'redirect']) await t.test(`${harness}/${fault}`, async t => {
+    const selected = { fabricated: 'Fabricated/Injected', 'legacy-deep': 'deep', 'wrong-case': 'AQUEDUCT.FAST' }[fault] ?? entries[0].id;
+    const { env, calls } = await endpoint(t, selected, fault === 'low' ? 0.749 : 0.95, fault);
+    const { value } = await run('route', { task: 'catalog-fallback', harness }, { ...env, ...catalogEnv(entries) });
+    assertCatalogQuestion(calls, entries); assertCatalogRoute(value, fallback, true);
+  });
+});
+test('catalog worker dry-run and launch honor selected and fallback entries including inherit', async t => {
+  const entries = catalogFixture();
+  for (const harness of ['hermes', 'codex']) for (const fault of ['accepted', 'low', 'fabricated', 'outage']) await t.test(`${harness}/${fault}`, async t => {
+    const worker = await workerFixture(t);
+    const { env, calls } = await endpoint(t, fault === 'fabricated' ? 'InjectedModel' : entries[0].id, fault === 'low' ? 0.74 : 0.95, fault);
+    await exerciseWorker(worker, harness, { ...env, ...catalogEnv(entries) }, fault === 'accepted' ? entries[0] : entries[2], [], calls, 1);
+  });
+});
+
+test('explicit custom Aqueduct worker accepts low and inherit without contacting Jev, with or without a catalog', async t => {
+  for (const harness of ['hermes', 'codex']) for (const withCatalog of [false, true]) for (const reasoning of ['low', 'inherit']) await t.test(`${harness}/${withCatalog ? 'catalog' : 'no catalog'}/${reasoning}`, async t => {
+    const worker = await workerFixture(t);
+    const entries = catalogFixture(), expected = { ...entries[0], reasoning };
+    if (!withCatalog) delete expected.id;
+    const { env, calls } = await endpoint(t, 'deep', 0.99, 'outage');
+    await exerciseWorker(worker, harness, { ...env, ...(withCatalog ? catalogEnv(entries) : {}) }, expected,
+      ['--model', expected.model, '--provider', expected.provider, '--reasoning', reasoning], calls);
+  });
+});
+test('explicit known models infer the legacy provider without a catalog and accept every reasoning value', async t => {
+  for (const harness of ['hermes', 'codex']) for (const reasoning of reasoningValues) await t.test(`${harness}/${reasoning}`, async t => {
+    const worker = await workerFixture(t);
+    const expected = { ...route(harness, 'standard'), reasoning };
+    const { env, calls } = await endpoint(t, 'deep', 0.99, 'outage');
+    await exerciseWorker(worker, harness, env, expected, ['--model', expected.model, '--reasoning', reasoning], calls);
+  });
+});
+test('explicit catalog models resolve a unique match and provider disambiguates a shared model', async t => {
+  for (const harness of ['hermes', 'codex']) for (const selection of ['unique', 'primary', 'secondary']) await t.test(`${harness}/${selection}`, async t => {
+    const worker = await workerFixture(t);
+    const entries = catalogFixture();
+    if (selection !== 'unique') entries[1].model = entries[0].model;
+    const expected = entries[selection === 'secondary' ? 1 : 0];
+    const { env, calls } = await endpoint(t, 'deep');
+    await exerciseWorker(worker, harness, { ...env, ...catalogEnv(entries) }, expected,
+      ['--model', expected.model, ...(selection === 'unique' ? [] : ['--provider', expected.provider])], calls);
+  });
+});
+test('catalog entries accept every reasoning value and pass it through to both harnesses', async t => {
+  for (const harness of ['hermes', 'codex']) for (const reasoning of reasoningValues) await t.test(`${harness}/${reasoning}`, async t => {
+    const worker = await workerFixture(t);
+    const entries = catalogFixture(); entries[0].reasoning = reasoning;
+    const { env, calls } = await endpoint(t, entries[0].id);
+    await exerciseWorker(worker, harness, { ...env, ...catalogEnv(entries) }, entries[0], [], calls, 1);
+  });
+});
+test('route JSON accepts explicit model, provider and reasoning without requesting a choice', async t => {
+  for (const harness of ['hermes', 'codex']) for (const selection of ['custom pair', 'catalog pair', 'catalog unique', 'known model']) for (const reasoning of ['low', 'inherit']) await t.test(`${harness}/${selection}/${reasoning}`, async t => {
+    const worker = await workerFixture(t);
+    const entries = catalogFixture(), withCatalog = selection.startsWith('catalog');
+    const expected = { ...(selection === 'known model' ? route(harness, 'routine') : entries[0]), reasoning };
+    const state = { task: worker.prompt, harness, model: expected.model, reasoning,
+      ...(['custom pair', 'catalog pair'].includes(selection) ? { provider: expected.provider } : {}) };
+    const { env, calls } = await endpoint(t, 'deep', 0.99, 'outage');
+    const { value } = await run('route', state, { ...env, ...worker.env, ...(withCatalog ? catalogEnv(entries) : {}) });
+    assert.equal(value.kind, 'route'); assert.equal(value.fallback, false);
+    for (const key of ['model', 'provider', 'reasoning']) assert.equal(value.route[key], expected[key], key);
+    if (withCatalog) assert.equal(value.route.id, expected.id);
+    assert.deepEqual(calls, []); assert.deepEqual(await auditEvents(worker), ['preload']);
+    await assert.rejects(access(worker.capture), { code: 'ENOENT' });
+  });
+});
+
+test('invalid catalogs reject route, pinned route, worker and pinned dry-run before fetch or spawn', async t => {
+  const entries = catalogFixture();
+  const invalid = [
+    ['malformed JSON', '{not-json'], ['empty env', ''], ['blank env', '   '],
+    ...[null, {}, 'routes', 1, [], [null], [[]]].map(value => [`invalid shape ${JSON.stringify(value)}`, JSON.stringify(value)]),
+    ['duplicate IDs', JSON.stringify([entries[0], { ...entries[1], id: entries[0].id }, entries[2]])],
+    ['101 entries', JSON.stringify(Array.from({ length: 101 }, (_, index) => ({ ...entries[0], id: `Route.${index}`, fallback: index === 0 })))],
+    ['no fallback', JSON.stringify(entries.map(entry => ({ ...entry, fallback: false })))],
+    ['two fallbacks', JSON.stringify(entries.map((entry, index) => ({ ...entry, fallback: index !== 1 })))],
+    ['nonboolean fallback', JSON.stringify([{ ...entries[0], fallback: 'true' }, entries[2]])],
+    ['invalid reasoning', JSON.stringify([{ ...entries[0], reasoning: 'turbo' }, entries[2]])],
+    ['unsafe model', JSON.stringify([{ ...entries[0], model: 'Aqueduct;touch' }, entries[2]])],
+    ['unsafe provider', JSON.stringify([{ ...entries[0], provider: 'Pool";injected=true' }, entries[2]])],
+    ['control in model', JSON.stringify([{ ...entries[0], model: 'Aqueduct\u0000Injected' }, entries[2]])],
+    ['leading dash provider', JSON.stringify([{ ...entries[0], provider: '-Pool' }, entries[2]])],
+  ];
+  for (const key of ['id', 'model', 'provider', 'reasoning', 'description']) {
+    const missing = { ...entries[0] }; delete missing[key];
+    invalid.push([`missing ${key}`, JSON.stringify([missing, entries[2]])]);
+    invalid.push([`nonstring ${key}`, JSON.stringify([{ ...entries[0], [key]: 42 }, entries[2]])]);
+    if (key !== 'description') invalid.push([`empty ${key}`, JSON.stringify([{ ...entries[0], [key]: '' }, entries[2]])]);
+  }
+  for (const harness of ['hermes', 'codex']) for (const mode of ['route', 'pinned route', 'worker', 'pinned dry-run']) for (const [label, json] of invalid) await t.test(`${harness}/${mode}/${label}`, async t => {
+    const worker = await workerFixture(t);
+    const { env, calls } = await endpoint(t, 'routine');
+    const known = route(harness, 'routine');
+    const command = mode.includes('route') ? 'route' : 'worker';
+    const state = command === 'route' ? { task: worker.prompt, harness, ...(mode === 'pinned route' ? { model: known.model } : {}) } : undefined;
+    const flags = command === 'worker' ? [...workerFlags(worker, harness), ...(mode === 'pinned dry-run' ? ['--model', known.model, '--dry-run'] : [])] : [];
+    await assertRejectedBeforeEffects(command, state, { ...env, JEV_ROUTES_JSON: json }, flags, worker, calls, /catalog|JEV_ROUTES_JSON|routes/i);
+  });
+});
+test('explicit resolution rejects missing providers, ambiguous models and pairs outside the catalog before effects', async t => {
+  for (const harness of ['hermes', 'codex']) {
+    const entries = catalogFixture(), shared = entries.map((entry, index) => index === 1 ? { ...entry, model: entries[0].model } : entry);
+    const cases = [
+      ['custom needs provider', undefined, { model: entries[0].model }, /provider/i],
+      ['provider needs model', undefined, { provider: entries[0].provider }, /model/i],
+      ['catalog provider needs model', entries, { provider: entries[0].provider }, /model/i],
+      ['ambiguous model', shared, { model: entries[0].model }, /ambig|provider/i],
+      ['unknown model', entries, { model: 'Team/Absent' }, /model|catalog|route/i],
+      ['crossed pair', entries, { model: entries[0].model, provider: entries[1].provider }, /provider|catalog|route/i],
+      ['unknown provider', entries, { model: entries[0].model, provider: 'Missing:Pool' }, /provider|catalog|route/i],
+      ['model case mismatch', entries, { model: entries[0].model.toUpperCase(), provider: entries[0].provider }, /model|catalog|route/i],
+      ['legacy model outside catalog', entries, { model: route(harness, 'deep').model }, /model|catalog|route/i],
+      ['legacy pair outside catalog', entries, { model: route(harness, 'deep').model, provider: route(harness, 'deep').provider }, /model|provider|catalog|route/i],
+      ['unsupported reasoning', undefined, { model: route(harness, 'routine').model, reasoning: 'turbo' }, /reasoning/i],
+    ];
+    for (const mode of ['route', 'worker', 'dry-run']) for (const [label, catalog, fields, diagnostic] of cases) await t.test(`${harness}/${mode}/${label}`, async t => {
+      const worker = await workerFixture(t);
+      const { env, calls } = await endpoint(t, 'routine');
+      const command = mode === 'route' ? 'route' : 'worker';
+      const state = command === 'route' ? { task: worker.prompt, harness, ...fields } : undefined;
+      const flags = command === 'worker' ? [...workerFlags(worker, harness), ...Object.entries(fields).flatMap(([key, value]) => [`--${key}`, value]), ...(mode === 'dry-run' ? ['--dry-run'] : [])] : [];
+      await assertRejectedBeforeEffects(command, state, { ...env, ...(catalog ? catalogEnv(catalog) : {}) }, flags, worker, calls, diagnostic);
+    });
+  }
+});
+test('unsafe explicit model and provider tokens reject before network or worker launch', async t => {
+  const invalid = [
+    ['empty', ''], ['space', 'Team Aqueduct'], ['tab', 'Team\tAqueduct'], ['newline', 'Team\nAqueduct'],
+    ['control', 'Team\u0001Aqueduct'], ['DEL', 'Team\u007fAqueduct'], ['leading dash', '-Aqueduct'],
+    ['semicolon', 'Aqueduct;touch'], ['substitution', 'Aqueduct$(id)'], ['backticks', 'Aqueduct`id`'],
+    ['pipe', 'Aqueduct|id'], ['ampersand', 'Aqueduct&id'], ['redirection', 'Aqueduct>output'],
+    ['double quote', 'Aqueduct"Injected'], ['single quote', "Aqueduct'Injected"], ['backslash', 'Aqueduct\\Injected'],
+  ];
+  for (const harness of ['hermes', 'codex']) for (const command of ['route', 'worker']) for (const field of ['model', 'provider']) for (const [label, value] of invalid) await t.test(`${harness}/${command}/${field}/${label}`, async t => {
+    const worker = await workerFixture(t);
+    const { env, calls } = await endpoint(t, 'routine');
+    const fields = { model: catalogFixture()[0].model, provider: catalogFixture()[0].provider, reasoning: 'low', [field]: value };
+    const state = command === 'route' ? { task: worker.prompt, harness, ...fields } : undefined;
+    const flags = command === 'worker' ? [...workerFlags(worker, harness), ...Object.entries(fields).flatMap(([key, token]) => [`--${key}`, token])] : [];
+    await assertRejectedBeforeEffects(command, state, env, flags, worker, calls, /model|provider|option|invalid/i);
   });
 });

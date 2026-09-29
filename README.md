@@ -125,12 +125,13 @@ Jev has four roles:
 
 ```bash
 hermes jev status
+hermes jev models
 hermes jev route < route.json
 hermes jev skills < task.json
 hermes jev triage < failure.json
 hermes jev evaluate < status-evidence.json
 hermes jev worker --harness hermes --cwd /absolute/workspace --prompt-file /absolute/task.txt --dry-run
-hermes jev worker --harness codex --cwd /absolute/workspace --prompt-file /absolute/task.txt
+hermes jev worker --harness codex --cwd /absolute/workspace --prompt-file /absolute/task.txt --read-only --dry-run
 hermes jev watch --once --include-codex
 hermes jev watch --interval 60
 ```
@@ -141,13 +142,109 @@ Each needs `task`, such as `{"task":"Inspect a small change","harness":"hermes"}
 `error`, and `native_status`. `skills` discovers candidates unless supplied.
 `status` reads local events only. `evaluate` invokes the status classifier.
 
-`worker --harness hermes|codex` applies an explicit model, provider, and reasoning
-route to a new process. `--dry-run` prints the plan but can still call Jev.
-Without that flag, the command launches the worker. Uncertainty selects the deep
-Astra/high route. Stock `delegate_task` is not automatically routed.
+### Route inventory and worker selection
+
+`hermes jev models` lists the configured route inventory. It does not verify
+provider access. By default, `route` and `worker` discover providers and models
+from the local Hermes configuration, including configured Aqueduct and CodexLB
+entries. Codex workers use compatible configured entries for their harness.
+Discovery uses configuration names. Capability descriptions remain unverified,
+with no assumed price or quality ranking.
+
+Optional `routes` under `plugins.entries.jev.settings` supplies catalogs by
+harness: `{hermes: [...], codex: [...]}`. Edit these catalogs to provide trusted
+capability descriptions and a conservative fallback. Each entry contains `id`,
+`model`, `provider`, `reasoning`, and `description`. Exactly one entry in each
+catalog must have `fallback: true`.
+
+This example shows the structure. Select the fallback and describe capabilities
+from local evidence before use:
+
+```yaml
+routes:
+  hermes:
+    - id: aqueduct-flash
+      model: tu_aq_deepseek-v4-flash-284b
+      provider: csh-aqueduct
+      reasoning: inherit
+      description: Configured Aqueduct entry. Capabilities are unverified.
+    - id: deep
+      model: subscription-gpt-6-astra
+      provider: csh-subscriptions
+      reasoning: high
+      description: Operator-selected fallback. Replace after local evaluation.
+      fallback: true
+  codex:
+    - id: deep
+      model: gpt-6-astra
+      provider: csh_openai_pull_through
+      reasoning: high
+      description: Operator-selected fallback. Replace after local evaluation.
+      fallback: true
+```
+
+For standalone Node, `JEV_ROUTES_JSON` supplies the catalog array for the selected
+harness, rather than the plugin dictionary. Its shape is
+`[{"id":"...","model":"...","provider":"...","reasoning":"inherit","description":"...","fallback":true}]`.
+Malformed explicit catalogs fail loudly. They do not silently select defaults.
+If the catalog is unavailable, the three built-in routes apply:
+
+| Route | Hermes model | Codex model | Reasoning |
+|---|---|---|---|
+| routine | `subscription-gpt-6-luna` | `gpt-6-luna` | medium |
+| standard | `subscription-gpt-6-sol` | `gpt-6-sol` | medium |
+| deep | `subscription-gpt-6-astra` | `gpt-6-astra` | high |
+
+Their providers are `csh-subscriptions` for Hermes and `csh_openai_pull_through`
+for Codex. Their fallback is Astra/high. With a catalog, uncertainty selects its
+designated fallback instead.
+
+`worker --harness hermes|codex` applies a route to a new process. Explicit selection
+uses `--model ID [--provider NAME] --reasoning none|minimal|low|medium|high|xhigh|max|ultra|inherit`.
+Catalog model IDs are not restricted to the three built-in families.
+If a model occurs under multiple providers, `--provider` is required.
+An explicit model selection bypasses Jev and preserves the supplied model,
+provider, and reasoning. `inherit` omits reasoning overrides from the worker
+command so the harness retains its own configuration.
+
+Prepare `task.txt` with the worker prompt, then inspect this Aqueduct example:
+
+```bash
+hermes jev worker --harness hermes --cwd "$PWD" --prompt-file task.txt \
+  --provider csh-aqueduct --model tu_aq_deepseek-v4-flash-284b --reasoning inherit --dry-run
+```
+
+Dry-run prints the plan without launching a worker. Automatic routing can still
+call Jev. If provider access works, repeat the command without `--dry-run` for an
+authorized real request. A dry-run does not verify access. A known CodexLB HTTP
+401 means its configured entries are not verified accessible.
+
+`--read-only` selects the Codex read-only sandbox. Hermes rejects this flag
+because its file tools permit writes. Stock `delegate_task` is not automatically
+routed. Neither `route` nor the hooks change a running session's model.
 The watcher reads source databases read-only and records local observations.
 Changed snapshots can receive Jev advice. Codex snapshots cannot prove activity
 or completion. Completion claims mean ready for review, not verified success.
+
+### Task contract and review
+
+Use the installed skills by name, without relative sibling links:
+
+- `research-guardian` and `freeze-clues`: establish the applicable task contract
+  before a worker launch. Include scope, invariants, required checks, and expected
+  evidence in the prompt.
+- `dignified-python`: reference it in a Python worker's prompt.
+- `hunt-faults`: review independently against the contract and inspect actual
+  check results and artifacts. Jev advice and worker claims do not replace checks.
+- `seal-records`: use only for explicitly authorized landing work.
+  Worker completion grants no commit, push, or merge authority.
+- `pensieve`: optional memory, never a prerequisite.
+
+Applicable instructions determine skill use. Jev suggestions do not change
+mandatory workflows. See the [usage skill](skills/jev/SKILL.md) for native
+supervision boundaries and retained evidence.
+
+### Raw CLI transport
 
 For raw CLI requests, select the CSH transport explicitly:
 

@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { constants } from 'node:os';
 import { JevError } from '../lib/client.mjs';
-import { route, status, skills, triage, redact } from '../lib/workflows.mjs';
+import { route, status, skills, triage, redact, reasoningValues } from '../lib/workflows.mjs';
 
 const help = `jev-agent route|status|skills|triage < state.json
   State: task; optional latest_output, error, native_status.
@@ -29,14 +29,12 @@ function workerOptions(argv) {
     const flag = argv[i];
     if (Object.hasOwn(options, flag)) throw new JevError('Duplicate worker option');
     if (['--dry-run', '--read-only'].includes(flag)) options[flag] = true;
-    else if (['--harness', '--cwd', '--prompt-file', '--model', '--reasoning'].includes(flag) && argv[i + 1] && !argv[i + 1].startsWith('--')) options[flag] = argv[++i];
+    else if (['--harness', '--cwd', '--prompt-file', '--model', '--provider', '--reasoning'].includes(flag) && argv[i + 1] && !argv[i + 1].startsWith('--')) options[flag] = argv[++i];
     else throw new JevError('Invalid worker option');
   }
   if (!['hermes', 'codex'].includes(options['--harness']) || !options['--cwd'] || !options['--prompt-file']) throw new JevError('Worker needs --harness, --cwd and --prompt-file');
   if (options['--harness'] === 'hermes' && options['--read-only']) throw new JevError('Hermes --read-only is unsupported: the file toolset includes write_file and patch; no verified read-only tool option is available');
-  if (options['--reasoning'] && !['medium', 'high'].includes(options['--reasoning'])) throw new JevError('Reasoning must be medium or high');
-  const prefix = options['--harness'] === 'hermes' ? 'subscription-' : '';
-  if (options['--model'] && !['luna', 'sol', 'astra'].some(family => options['--model'] === `${prefix}gpt-6-${family}`)) throw new JevError('Model must belong to the selected harness routing family');
+  if (options['--reasoning'] && !reasoningValues.includes(options['--reasoning'])) throw new JevError('Invalid reasoning value');
   return options;
 }
 
@@ -52,13 +50,14 @@ async function worker(argv) {
   } catch { throw new JevError('Cannot read worker prompt or working directory'); }
   if (!task.trim() || task.includes('\0')) throw new JevError('Invalid worker prompt');
   const harness = options['--harness'];
-  const receipt = await route({ task: options['--model'] ? `Use ${options['--model']}` : task, harness });
+  const receipt = await route({ task, harness, model: options['--model'], provider: options['--provider'], reasoning: options['--reasoning'] });
   if (receipt.requires_model) throw new JevError('Ambiguous task model pin; specify --model explicitly');
-  if (options['--reasoning']) { receipt.route.reasoning = options['--reasoning']; receipt.reasoning_pinned = true; }
   const { model, provider, reasoning } = receipt.route;
   const args = harness === 'hermes'
-    ? ['--cli', '-m', model, '--provider', provider, '--reasoning', reasoning, 'chat', '-Q', '-q', task]
-    : ['exec', '-m', model, '-c', `model_provider="${provider}"`, '-c', `model_reasoning_effort="${reasoning}"`, ...(options['--read-only'] ? ['-s', 'read-only'] : []), '--', task];
+    ? ['--cli', '-m', model, '--provider', provider, ...(reasoning === 'inherit' ? [] : ['--reasoning', reasoning]), 'chat', '-Q', '-q', task]
+    : ['exec', '-m', model, '-c', `model_provider=${JSON.stringify(provider)}`,
+        ...(reasoning === 'inherit' ? [] : ['-c', `model_reasoning_effort=${JSON.stringify(reasoning)}`]),
+        ...(options['--read-only'] ? ['-s', 'read-only'] : []), '--', task];
   if (options['--dry-run']) { console.log(JSON.stringify({ route: receipt, command: harness, args: args.map(arg => redact(arg)), cwd: redact(cwd) })); return; }
   console.error(JSON.stringify(receipt));
   await new Promise((resolveChild, reject) => {
