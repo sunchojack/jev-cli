@@ -12,7 +12,7 @@ These tests precede production implementation. They use Node's built-in test run
 - MCP bypasses shared transport behavior or changes its answers-only response.
 - Routing selects the wrong model, provider, or reasoning level.
 - Routing accepts confidence below 0.75 or uses the selected probability instead of confidence.
-- Invalid responses, redirects, disconnections, timeouts, or outages bypass the deep fallback.
+- Invalid responses, redirects, disconnections, timeouts, or outages bypass the declared fallback (Luna/medium since September 30).
 - A model judgment turns “finished” into authoritative success or overrides an explicit native failure.
 - Skill selection returns names outside the candidate set or drops mandatory task instructions.
 - Triage returns an undefined category or starts an approval subprocess.

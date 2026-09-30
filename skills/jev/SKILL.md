@@ -28,7 +28,7 @@ endpoint: https://llm.ascii.ac.at/typesafe/v1/systemone
 key_env: CSH_AGENTIC_CODING_KEY
 timeout_ms: 5000
 threshold: 0.75
-max_skills: 60
+max_skills: 5
 # cli_path: /absolute/path/to/jev-cli/bin/jev-agent.mjs
 # node_path: /absolute/path/to/node
 ```
@@ -62,7 +62,8 @@ Decision commands read a JSON object with `task`. `route` also requires `harness
 
 Optional evidence fields: `latest_output`, `error`, `native_status`.
 `skills` obtains the Hermes roster unless input supplies `candidates` with `name` and `description`.
-Local lexical matching ranks the optional shortlist without a model call. Mandatory workflows remain excluded and authoritative.
+Local lexical matching selects at most five relevant candidates without a model call.
+If no candidate matches, automatic hints make no evaluator request. Mandatory workflows remain excluded and authoritative.
 `evaluate` calls the Node status classifier. `status` reads local events. `/jev` shows status and instructions without launching work.
 
 ## Route Inventory and Explicit Selection
@@ -71,19 +72,24 @@ Local lexical matching ranks the optional shortlist without a model call. Mandat
 By default, `route` and `worker` discover local Hermes providers and models, including configured Aqueduct and CodexLB entries.
 Codex workers use compatible configured entries for their harness.
 Discovery uses configuration names. Capability descriptions remain unverified, with no assumed price or quality ranking.
+Discovery prefers configured Luna, then the active default, then the first entry as fallback.
+Luna and Sol use medium reasoning unless metadata specifies otherwise. Other models inherit reasoning.
+Codex discovery requires matching base URLs between Hermes `codex_responses` and Codex Responses providers.
 
 Optional plugin `routes` is a dictionary by harness: `{hermes: [...], codex: [...]}`.
 Edit these catalogs to supply trusted capability descriptions and a conservative fallback.
 Standalone Node accepts a catalog array through `JEV_ROUTES_JSON`.
 Each entry has `id`, `model`, `provider`, `reasoning`, and `description`. Exactly one entry per catalog must have `fallback: true`.
 Malformed explicit catalogs fail loudly instead of silently selecting defaults.
-Without an available catalog, the three built-in routes are Luna/medium, Sol/medium, and Astra/high. Their fallback is Astra/high.
+Without an available catalog, the three built-in routes are Luna/medium, Sol/medium, and Astra/high. Their fallback is Luna/medium.
 With a catalog, uncertainty uses its designated fallback. `route` never changes a running session.
+Explicit catalogs remain authoritative, including a deliberately configured Astra fallback.
 
 Worker selection: `--model ID [--provider NAME] --reasoning none|minimal|low|medium|high|xhigh|max|ultra|inherit`.
 Catalog model IDs are not restricted to the three built-in families.
 If a model occurs under multiple providers, specify `--provider`.
 An explicit model selection bypasses Jev and preserves the supplied model, provider, and reasoning.
+Task-line pins require catalog membership. An unresolved pin cannot launch a worker.
 `inherit` omits reasoning overrides from the worker command so the harness retains its own configuration.
 
 Prepare `task.txt`, then inspect this Aqueduct example:
@@ -102,9 +108,11 @@ A dry-run does not verify access. A known CodexLB HTTP 401 means its configured 
 
 1. Read task instructions and native status. Use `research-guardian` and `freeze-clues` to establish the applicable task contract.
 2. Put scope, invariants, required checks, and expected evidence in the worker prompt. For Python work, reference `dignified-python`.
-3. Inspect `models`, then run `worker --dry-run`. Preserve explicit selections and resolve provider ambiguity before launch.
+3. Inspect `models`, then run `worker --dry-run`. Prefer Luna/medium for bounded work with clear requirements and required checks.
+   Preserve explicit selections. Resolve provider ambiguity before launch. Low confidence alone does not justify an Astra upgrade.
 4. If authorized and provider access works, launch the worker through the supported harness CLI.
 5. Use `hunt-faults` for independent review against the contract. Inspect actual check results and artifacts before reporting success.
+   If checks reveal a reasoning limitation, consider a deeper route for a new authorized worker. Do not change a running session.
 6. Use `seal-records` only for explicitly authorized landing work. Worker completion grants no commit, push, or merge authority.
 
 Load these installed skills by name, not relative sibling paths. Applicable instructions determine their use, not Jev suggestions.

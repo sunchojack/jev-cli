@@ -97,10 +97,10 @@ test('route maps every lane for both harnesses at the 0.75 threshold', async t =
     assert.ok(calls.length > 0); assert.ok(JSON.stringify(calls[0].state).includes('route-001'));
   });
 });
-test('route fails deep on low confidence, invalid choice, malformed JSON, timeout, redirect and outage', async t => {
+test('route uses the economical fallback on low confidence, invalid choice, malformed JSON, timeout, redirect and outage', async t => {
   for (const harness of ['hermes', 'codex']) for (const fault of ['low', 'invalid', 'malformed', 'timeout', 'redirect', 'outage', 'network']) await t.test(`${harness}/${fault}`, async t => {
     const { env, calls } = await endpoint(t, fault === 'invalid' ? 'invented' : 'routine', fault === 'low' ? 0.749 : 0.95, fault);
-    assertRoute((await run('route', { task: 'route-002', harness }, env)).value, harness, 'deep', true);
+    assertRoute((await run('route', { task: 'route-002', harness }, env)).value, harness, 'routine', true);
     assert.ok(calls.length > 0); if (fault === 'redirect') assert.equal(calls.length, 1);
   });
 });
@@ -152,7 +152,7 @@ test('workflow receipts preserve evaluator model and usage on accepted and low-c
     assert.equal(calls.length, 1); assert.equal(calls[0].model, 'jev-requested-alias');
     assert.equal(value.kind, command); assert.equal(value.model, provenance.model); assert.deepEqual(value.usage, provenance.usage);
     assert.equal(value.fallback, confidence < 0.75);
-    if (command === 'route') assertRoute(value, 'hermes', confidence < 0.75 ? 'deep' : 'routine', confidence < 0.75);
+    if (command === 'route') assertRoute(value, 'hermes', 'routine', confidence < 0.75);
   });
 });
 function flag(args, ...names) { const index = args.findIndex(arg => names.includes(arg)); return index < 0 ? undefined : args[index + 1]; }
@@ -266,13 +266,14 @@ test('negated, short, provider-qualified and prose-adjacent pins never silently 
     const configured = { ...env, ...worker.env };
     const args = ['--harness', harness, '--cwd', worker.cwd, '--prompt-file', worker.file];
     const { value } = await run('route', { task, harness }, configured);
-    assert.equal(value.kind, 'route'); assert.notEqual(value.route.model, route(harness, 'routine').model);
+    assert.equal(value.kind, 'route');
     const needsModel = value.requires_model === true || value.needs_model === true;
     if (needsModel) {
       await assert.rejects(run('worker', undefined, configured, args), error => { assert.equal(error.code, 1); assert.equal(error.killed, false); assert.match(error.stderr, /--model/); return true; });
       await assert.rejects(access(worker.capture), { code: 'ENOENT' });
       assert.ok(!(await readFile(worker.env.TEST_AUDIT, 'utf8')).includes('"event":"process"'));
     } else {
+      assert.notEqual(value.route.model, route(harness, 'routine').model);
       assert.equal(value.route.model, route(harness, lane).model);
       assert.equal((await run('worker', undefined, configured, args)).stdout.trim(), 'fixture last worker output');
       const spawned = JSON.parse((await readFile(worker.capture, 'utf8')).trim());

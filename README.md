@@ -110,7 +110,7 @@ endpoint: https://llm.ascii.ac.at/typesafe/v1/systemone
 key_env: CSH_AGENTIC_CODING_KEY
 timeout_ms: 5000
 threshold: 0.75
-max_skills: 60
+max_skills: 5
 cli_path: ""  # Resolve bin/jev-agent.mjs from the checkout.
 node_path: node
 ```
@@ -150,6 +150,10 @@ from the local Hermes configuration, including configured Aqueduct and CodexLB
 entries. Codex workers use compatible configured entries for their harness.
 Discovery uses configuration names. Capability descriptions remain unverified,
 with no assumed price or quality ranking.
+Discovery prefers configured Luna as the fallback, then the active default, then
+the first entry. Luna and Sol use medium reasoning unless metadata specifies otherwise.
+Other models inherit reasoning. Codex discovery requires a Hermes
+`codex_responses` transport and a Codex Responses provider with the same base URL.
 
 Optional `routes` under `plugins.entries.jev.settings` supplies catalogs by
 harness: `{hermes: [...], codex: [...]}`. Edit these catalogs to provide trusted
@@ -168,18 +172,23 @@ routes:
       provider: csh-aqueduct
       reasoning: inherit
       description: Configured Aqueduct entry. Capabilities are unverified.
+    - id: bounded
+      model: subscription-gpt-6-luna
+      provider: csh-subscriptions
+      reasoning: medium
+      description: Bounded work with clear requirements and required checks.
+      fallback: true
     - id: deep
       model: subscription-gpt-6-astra
       provider: csh-subscriptions
       reasoning: high
-      description: Operator-selected fallback. Replace after local evaluation.
-      fallback: true
+      description: Complex work that requires deeper analysis.
   codex:
-    - id: deep
-      model: gpt-6-astra
+    - id: bounded
+      model: gpt-6-luna
       provider: csh_openai_pull_through
-      reasoning: high
-      description: Operator-selected fallback. Replace after local evaluation.
+      reasoning: medium
+      description: Bounded work with clear requirements and required checks.
       fallback: true
 ```
 
@@ -196,8 +205,15 @@ If the catalog is unavailable, the three built-in routes apply:
 | deep | `subscription-gpt-6-astra` | `gpt-6-astra` | high |
 
 Their providers are `csh-subscriptions` for Hermes and `csh_openai_pull_through`
-for Codex. Their fallback is Astra/high. With a catalog, uncertainty selects its
-designated fallback instead.
+for Codex. Their fallback is Luna/medium, including low confidence and endpoint
+failures. With a catalog, uncertainty selects its designated fallback instead.
+Explicit catalogs remain authoritative, including a deliberately configured Astra fallback.
+Task-line pins also require catalog membership. Unresolved pins cannot launch a worker.
+
+Start bounded work on an economical route and keep validation and review mandatory.
+Use deeper analysis for a demonstrated need. Low confidence alone does not justify an upgrade.
+Optional skill hints send at most five candidates with a positive lexical match.
+If no candidate matches, automatic hints make no evaluator request.
 
 `worker --harness hermes|codex` applies a route to a new process. Explicit selection
 uses `--model ID [--provider NAME] --reasoning none|minimal|low|medium|high|xhigh|max|ultra|inherit`.

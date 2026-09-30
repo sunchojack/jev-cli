@@ -4,9 +4,9 @@ import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { constants } from 'node:os';
 import { JevError } from '../lib/client.mjs';
-import { route, status, skills, triage, redact, reasoningValues } from '../lib/workflows.mjs';
+import { route, status, skills, triage, inventory, redact, reasoningValues } from '../lib/workflows.mjs';
 
-const help = `jev-agent route|status|skills|triage < state.json
+const help = `jev-agent route|status|skills|triage|models < state.json
   State: task; optional latest_output, error, native_status.
   route also requires harness: hermes|codex.
   skills requires candidates: [{name, description}] (at most 100).
@@ -15,8 +15,8 @@ const help = `jev-agent route|status|skills|triage < state.json
   Task limit: 12000 characters; output/error: 4000 each. Oversize fails conservatively.
 
 jev-agent worker --harness hermes|codex --cwd DIR --prompt-file FILE
-  [--dry-run] [--read-only] [--model MODEL] [--reasoning medium|high]
-  Models: subscription-gpt-6-{luna,sol,astra} (Hermes), gpt-6-{luna,sol,astra} (Codex).
+  [--dry-run] [--read-only] [--model MODEL] [--provider PROVIDER] [--reasoning LEVEL]
+  Model/provider pairs can come from a configured catalog. The built-in fallback is Luna/medium.
   Task pins require a complete directive line, such as --model gpt-6-astra.
   Ambiguous task model pins require --model. JEV_WORKER=1 prevents nested workers.
   Dry-run prints the plan with obvious credentials redacted.
@@ -80,7 +80,7 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (['--help', '-h'].includes(command)) { console.log(help); return; }
   if (command === 'worker') return worker(args);
-  const workflow = { route, status, skills, triage };
+  const workflow = { route, status, skills, triage, models: input => inventory(input.harness) };
   if (!Object.hasOwn(workflow, command) || args.length) throw new JevError('Use jev-agent --help for usage');
   let text = '';
   process.stdin.setEncoding('utf8');

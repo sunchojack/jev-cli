@@ -13,9 +13,12 @@ import sqlite3
 import subprocess
 import sys
 import time
+import tomllib
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
+
+import hermes_yaml as yaml
 
 from agent.secret_scope import get_secret, is_multiplex_active
 from hermes_constants import get_hermes_home, get_hermes_home_override
@@ -26,7 +29,7 @@ from tools.environments.local import served_profile_child_env
 DEFAULTS = {
     "enabled": True, "endpoint": "https://llm.ascii.ac.at/typesafe/v1/systemone",
     "key_env": "CSH_AGENTIC_CODING_KEY", "timeout_ms": 5000, "threshold": 0.75,
-    "max_skills": 60, "cli_path": "", "node_path": "node",
+    "max_skills": 5, "cli_path": "", "node_path": "node", "routes": None,
 }
 STATUSES = {"working", "waiting_for_input", "blocked", "ready_for_review", "unclear"}
 CATEGORIES = {"authentication", "quota", "dependency", "code_defect",
@@ -46,7 +49,7 @@ NATIVE_REASONS = {
 CORRELATION_IDS = ("turn_id", "parent_turn_id", "tool_call_id", "api_request_id")
 HERMES_KEY = "CSH_AGENTIC_CODING_KEY"
 CODEX_KEY = "CSH_OPENAI_PULL_THROUGH_TOKEN"
-HELP = ("Jev: hermes jev status | watch --once | watch --interval 60 | route | skills | triage | evaluate. "
+HELP = ("Jev: hermes jev models | status | watch --once | watch --interval 60 | route | skills | triage | evaluate. "
         "Decisions read JSON stdin. Only hermes jev worker --harness hermes|codex "
         "--cwd DIR --prompt-file FILE [--dry-run] [--read-only] launches a worker. "
         "Native outcomes are authoritative; Jev advice is optional. "
@@ -255,9 +258,89 @@ class Jev:
                     "TYPESAFE_API_KEY_ENV": cfg["key_env"], "TYPESAFE_API_URL": cfg["endpoint"],
                     "TYPESAFE_TIMEOUT_MS": str(max(50, cfg["timeout_ms"] - min(250, cfg["timeout_ms"] // 10))),
                     "JEV_CONFIDENCE_THRESHOLD": str(cfg["threshold"])})
+        if worker_harness:
+            catalog = self.catalog(cfg, home, worker_harness)
+            if catalog is not None:
+                env["JEV_ROUTES_JSON"] = json.dumps(catalog)
         if os.environ.get("JEV_WORKER") == "1":
             env["JEV_WORKER"] = "1"
         return [*node.command, str(cli)], env
+
+    def catalog(self, cfg: dict, home: Path, harness: str) -> list | None:
+        explicit = cfg.get("routes")
+        if explicit is not None and (not isinstance(explicit, dict) or set(explicit) - {"hermes", "codex"}):
+            raise ValueError("routes must be a dictionary by harness")
+        if explicit is not None and harness in explicit:
+            if not isinstance(explicit[harness], list):
+                raise ValueError("Explicit routes must be a catalog array")
+            return explicit[harness]
+        path = home / "config.yaml"
+        config = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        if not isinstance(config, dict):
+            raise ValueError("Invalid profile configuration")
+        providers = config.get("providers", {})
+        if not isinstance(providers, dict):
+            raise ValueError("Invalid provider configuration")
+        codex = {}
+        if harness == "codex":
+            codex_home = get_secret("CODEX_HOME")
+            codex_path = (Path(codex_home).expanduser() if codex_home else Path.home() / ".codex") / "config.toml"
+            codex = tomllib.loads(codex_path.read_text(encoding="utf-8")) if codex_path.is_file() else {}
+        codex_providers = codex.get("model_providers", {})
+        if not isinstance(codex_providers, dict):
+            raise ValueError("Invalid Codex provider configuration")
+        entries = []
+        for provider, details in providers.items():
+            if not isinstance(details, dict):
+                continue
+            models = details.get("models", {})
+            if isinstance(models, list):
+                normalized = {}
+                for model in models:
+                    if isinstance(model, str):
+                        normalized[model] = {}
+                    elif isinstance(model, dict) and isinstance(model.get("id"), str):
+                        normalized[model["id"]] = model
+                    else:
+                        raise ValueError("Invalid configured model list entry")
+                models = normalized
+            if not isinstance(models, dict):
+                raise ValueError("Invalid configured model list")
+            models = dict(models)
+            default = details.get("default_model")
+            if isinstance(default, str) and default:
+                models.setdefault(default, {})
+            names = [provider] if harness == "hermes" else []
+            if harness == "codex" and details.get("transport") == "codex_responses":
+                url = details.get("api") or details.get("url") or details.get("base_url")
+                names = [name for name, entry in codex_providers.items()
+                              if isinstance(entry, dict) and entry.get("wire_api") == "responses"
+                              and isinstance(url, str) and isinstance(entry.get("base_url"), str)
+                              and entry["base_url"].rstrip("/") == url.rstrip("/")]
+            for model, metadata in models.items():
+                if not isinstance(model, str) or not model:
+                    raise ValueError("Invalid model identifier")
+                metadata = metadata if isinstance(metadata, dict) else {}
+                description = excerpt(metadata.get("description"), cfg, 500) or "Configured entry. Capabilities are unverified."
+                bounded = model in {"gpt-6-luna", "subscription-gpt-6-luna", "gpt-6-sol", "subscription-gpt-6-sol"}
+                reasoning = metadata.get("reasoning", "medium" if bounded else "inherit")
+                for name in names:
+                    entries.append({"id": "r-" + digest([name, model])[:16],
+                                    "model": model, "provider": name, "reasoning": reasoning,
+                                    "description": description})
+        if not entries:
+            return None
+        preferred = "subscription-gpt-6-luna" if harness == "hermes" else "gpt-6-luna"
+        default_config = config.get("model", {}) if harness == "hermes" else codex
+        if not isinstance(default_config, dict):
+            raise ValueError("Invalid default model configuration")
+        default_model = default_config.get("default", "") if harness == "hermes" else codex.get("model", "")
+        default_provider = default_config.get("provider", "") if harness == "hermes" else codex.get("model_provider", "")
+        fallback = next((e for e in entries if e["model"] == preferred), None)
+        if fallback is None:
+            fallback = next((e for e in entries if e["model"] == default_model and e["provider"] == default_provider), entries[0])
+        fallback["fallback"] = True
+        return entries
 
     def decide(self, cfg: dict, home: Path, command: str, payload: dict,
                event: dict, kind: str, *, automatic: bool = True, args: list | None = None) -> dict | None:
@@ -271,7 +354,7 @@ class Jev:
             record(home, kind, event, {"suppressed": True})
             return None
         try:
-            argv, env = self.launch(cfg, home)
+            argv, env = self.launch(cfg, home, worker_harness=payload.get("harness", "") if command == "route" else "")
             if automatic and not env[cfg["key_env"]]:
                 raise ValueError("Scoped Jev key unavailable")
             response = subprocess.run(
@@ -332,7 +415,8 @@ class Jev:
                 continue
             candidates[name] = {"name": name, "description": excerpt(description, cfg, 180)}
             scores[name] = 3 * len(terms & lexical_terms(name)) + len(terms & lexical_terms(description))
-        ranked = sorted(candidates, key=lambda name: (-scores[name], name))[:cfg["max_skills"]]
+        ranked = sorted((name for name in candidates if scores[name] > 0),
+                        key=lambda name: (-scores[name], name))[:min(5, cfg["max_skills"])]
         counts = {"catalog_total": len(rows), "eligible_total": len(candidates), "shortlisted_count": len(ranked)}
         return {"candidates": [candidates[k] for k in ranked], "roster_counts": counts,
                 "latest_output": "Local lexical shortlist counts: " + json.dumps(counts)}
@@ -477,6 +561,18 @@ class Jev:
                 return
             home = active_home()
             command = args.jev_command
+            if command == "models":
+                if args.jev_args:
+                    raise ValueError("models takes no arguments")
+                catalogs = {}
+                for harness in ("hermes", "codex"):
+                    argv, env = self.launch(cfg, home, worker_harness=harness)
+                    result = subprocess.run([*argv, "models"], input=json.dumps({"harness": harness}),
+                                            capture_output=True, text=True, encoding="utf-8", check=True,
+                                            env=env, timeout=cfg["timeout_ms"] / 1000)
+                    catalogs[harness] = json.loads(result.stdout)["routes"]
+                print(json.dumps({"catalogs": catalogs, "access_verified": False}))
+                return
             if command == "watch":
                 # Hermes loads this plugin as a dynamically named package.
                 from .watch import watch
@@ -525,7 +621,7 @@ class Jev:
 
 def setup_cli(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("jev_command", nargs="?", default="status",
-                        choices=("status", "watch", "route", "skills", "triage", "evaluate", "worker"))
+                        choices=("models", "status", "watch", "route", "skills", "triage", "evaluate", "worker"))
     parser.add_argument("jev_args", nargs=argparse.REMAINDER)
 
 
