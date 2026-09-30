@@ -1,5 +1,8 @@
 # Jev benchmark (first run)
 
+This September 29 snapshot uses the former Astra fallback. The revised policy
+and coding comparison are in [the September 30 report](jev-routing-2026-09-30.md).
+
 ## Why this exists
 The earlier price estimate was not a real model-cost comparison: it assumed worker prices and token volumes without running workers. Do not use its claimed 56–80% savings. This suite replaces it.
 

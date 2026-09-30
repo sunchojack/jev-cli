@@ -1,0 +1,887 @@
+{
+  "created_at": "2026-09-30T18:03:19.616Z",
+  "method": "New live routing decisions paired with the matching frozen, independently checked coding outputs from the earlier same-day experiment. Worker generations are reused, not new E2E executions. Two runs per scenario. Public-rate equivalents are not actual CSH charges.",
+  "rates": {
+    "price_type": "public-rate equivalent, not actual CSH charges",
+    "worker_usd_per_million_input_output": {
+      "subscription-gpt-6-luna": [
+        0.1,
+        0.5
+      ],
+      "subscription-gpt-6-sol": [
+        2,
+        10
+      ],
+      "subscription-gpt-6-astra": [
+        10,
+        50
+      ],
+      "tu_aq_deepseek-v4-flash-284b": [
+        0.15,
+        0.6
+      ]
+    },
+    "jev_usd_per_million_input_output": [
+      0.042,
+      0
+    ],
+    "sources": [
+      "https://developers.openai.com/api/docs/pricing/",
+      "https://api-docs.deepseek.com/quick_start/pricing",
+      "https://opencode.ai/docs/zen/"
+    ]
+  },
+  "original_summary": [
+    {
+      "case": "routine-validation",
+      "arm": "aqueduct",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 3.476,
+      "api_equivalent_total_usd": 0.0010436999999999998,
+      "proxy_savings_vs_astra_pct": 94.63669064748201,
+      "mean_input": 131,
+      "mean_output": 837,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "routine-validation",
+      "arm": "luna",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 5.5405,
+      "api_equivalent_total_usd": 0.0002751,
+      "proxy_savings_vs_astra_pct": 98.5863309352518,
+      "mean_input": 138,
+      "mean_output": 247.5,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "routine-validation",
+      "arm": "sol",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 9.689,
+      "api_equivalent_total_usd": 0.003732,
+      "proxy_savings_vs_astra_pct": 80.82219938335047,
+      "mean_input": 138,
+      "mean_output": 159,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "routine-validation",
+      "arm": "astra",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 6.6655,
+      "api_equivalent_total_usd": 0.01946,
+      "proxy_savings_vs_astra_pct": 0,
+      "mean_input": 138,
+      "mean_output": 167,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "routine-validation",
+      "arm": "jev-builtin",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 6.9435,
+      "api_equivalent_total_usd": 0.01950158,
+      "proxy_savings_vs_astra_pct": -0.2136690647482009,
+      "mean_input": 138,
+      "mean_output": 167,
+      "jev_input": 990,
+      "jev_output": 76,
+      "fallbacks": 2
+    },
+    {
+      "case": "routine-validation",
+      "arm": "jev-custom",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 6.9295,
+      "api_equivalent_total_usd": 0.019500320000000005,
+      "proxy_savings_vs_astra_pct": -0.20719424460433622,
+      "mean_input": 138,
+      "mean_output": 167,
+      "jev_input": 960,
+      "jev_output": 82,
+      "fallbacks": 2
+    },
+    {
+      "case": "pooled-data",
+      "arm": "aqueduct",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 30.9525,
+      "api_equivalent_total_usd": 0.0038634,
+      "proxy_savings_vs_astra_pct": 95.65128320576318,
+      "mean_input": 276,
+      "mean_output": 3150.5,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "pooled-data",
+      "arm": "luna",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 19.3845,
+      "api_equivalent_total_usd": 0.0009879,
+      "proxy_savings_vs_astra_pct": 98.88800090049527,
+      "mean_input": 272,
+      "mean_output": 933.5,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "pooled-data",
+      "arm": "sol",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 41.739000000000004,
+      "api_equivalent_total_usd": 0.017698,
+      "proxy_savings_vs_astra_pct": 80.07879333633498,
+      "mean_input": 272,
+      "mean_output": 830.5,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "pooled-data",
+      "arm": "astra",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 27.216,
+      "api_equivalent_total_usd": 0.08884,
+      "proxy_savings_vs_astra_pct": 0,
+      "mean_input": 272,
+      "mean_output": 834,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "pooled-data",
+      "arm": "jev-builtin",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 41.977000000000004,
+      "api_equivalent_total_usd": 0.01775302,
+      "proxy_savings_vs_astra_pct": 80.01686177397569,
+      "mean_input": 272,
+      "mean_output": 830.5,
+      "jev_input": 1310,
+      "jev_output": 76,
+      "fallbacks": 0
+    },
+    {
+      "case": "pooled-data",
+      "arm": "jev-custom",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 27.4725,
+      "api_equivalent_total_usd": 0.08889376,
+      "proxy_savings_vs_astra_pct": -0.06051328230527453,
+      "mean_input": 272,
+      "mean_output": 834,
+      "jev_input": 1280,
+      "jev_output": 82,
+      "fallbacks": 2
+    },
+    {
+      "case": "authorization",
+      "arm": "aqueduct",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 12.137,
+      "api_equivalent_total_usd": 0.0011034,
+      "proxy_savings_vs_astra_pct": 97.14219114219114,
+      "mean_input": 206,
+      "mean_output": 868,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "authorization",
+      "arm": "luna",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 7.067,
+      "api_equivalent_total_usd": 0.00033660000000000005,
+      "proxy_savings_vs_astra_pct": 99.12820512820512,
+      "mean_input": 203,
+      "mean_output": 296,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "authorization",
+      "arm": "sol",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 12.5655,
+      "api_equivalent_total_usd": 0.005392,
+      "proxy_savings_vs_astra_pct": 86.03470603470603,
+      "mean_input": 203,
+      "mean_output": 229,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "authorization",
+      "arm": "astra",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 12.842500000000001,
+      "api_equivalent_total_usd": 0.03861,
+      "proxy_savings_vs_astra_pct": 0,
+      "mean_input": 203,
+      "mean_output": 345.5,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "authorization",
+      "arm": "jev-builtin",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 13.079,
+      "api_equivalent_total_usd": 0.038657543999999995,
+      "proxy_savings_vs_astra_pct": -0.12313908313907884,
+      "mean_input": 203,
+      "mean_output": 345.5,
+      "jev_input": 1132,
+      "jev_output": 76,
+      "fallbacks": 2
+    },
+    {
+      "case": "authorization",
+      "arm": "jev-custom",
+      "runs": 2,
+      "passed": 2,
+      "mean_seconds": 13.091000000000001,
+      "api_equivalent_total_usd": 0.03865628399999999,
+      "proxy_savings_vs_astra_pct": -0.11987567987565839,
+      "mean_input": 203,
+      "mean_output": 345.5,
+      "jev_input": 1102,
+      "jev_output": 82,
+      "fallbacks": 2
+    },
+    {
+      "case": "all",
+      "arm": "aqueduct",
+      "runs": 6,
+      "passed": 6,
+      "mean_seconds": 15.521833333333333,
+      "api_equivalent_total_usd": 0.0060104999999999985,
+      "proxy_savings_vs_astra_pct": 95.90871962425976,
+      "mean_input": 204.33333333333334,
+      "mean_output": 1618.5,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "all",
+      "arm": "luna",
+      "runs": 6,
+      "passed": 6,
+      "mean_seconds": 10.664,
+      "api_equivalent_total_usd": 0.0015996000000000003,
+      "proxy_savings_vs_astra_pct": 98.9111701041454,
+      "mean_input": 204.33333333333334,
+      "mean_output": 492.3333333333333,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "all",
+      "arm": "sol",
+      "runs": 6,
+      "passed": 6,
+      "mean_seconds": 21.331166666666665,
+      "api_equivalent_total_usd": 0.026822,
+      "proxy_savings_vs_astra_pct": 81.74256347423594,
+      "mean_input": 204.33333333333334,
+      "mean_output": 406.1666666666667,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "all",
+      "arm": "astra",
+      "runs": 6,
+      "passed": 6,
+      "mean_seconds": 15.574666666666664,
+      "api_equivalent_total_usd": 0.14691,
+      "proxy_savings_vs_astra_pct": 0,
+      "mean_input": 204.33333333333334,
+      "mean_output": 448.8333333333333,
+      "jev_input": 0,
+      "jev_output": 0,
+      "fallbacks": 0
+    },
+    {
+      "case": "all",
+      "arm": "jev-builtin",
+      "runs": 6,
+      "passed": 6,
+      "mean_seconds": 20.666500000000003,
+      "api_equivalent_total_usd": 0.07591214400000001,
+      "proxy_savings_vs_astra_pct": 48.32744945885236,
+      "mean_input": 204.33333333333334,
+      "mean_output": 447.6666666666667,
+      "jev_input": 3432,
+      "jev_output": 228,
+      "fallbacks": 4
+    },
+    {
+      "case": "all",
+      "arm": "jev-custom",
+      "runs": 6,
+      "passed": 6,
+      "mean_seconds": 15.831000000000001,
+      "api_equivalent_total_usd": 0.14705036400000004,
+      "proxy_savings_vs_astra_pct": -0.09554421074129404,
+      "mean_input": 204.33333333333334,
+      "mean_output": 448.8333333333333,
+      "jev_input": 3342,
+      "jev_output": 246,
+      "fallbacks": 6
+    }
+  ],
+  "decisions": [
+    {
+      "case": "routine-validation",
+      "rep": 0,
+      "mode": "builtin",
+      "ms": 334.503298,
+      "receipt": {
+        "choice": "routine",
+        "confidence": 1,
+        "probabilities": {
+          "deep": 0,
+          "routine": 1,
+          "standard": 0
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 493,
+          "output_tokens": 38
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "lane": "routine",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium"
+        }
+      }
+    },
+    {
+      "case": "routine-validation",
+      "rep": 0,
+      "mode": "custom",
+      "ms": 286.228825,
+      "receipt": {
+        "choice": "luna",
+        "confidence": 0.96,
+        "probabilities": {
+          "astra": 0,
+          "aqueduct": 0.03,
+          "luna": 0.97
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 488,
+          "output_tokens": 41
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "id": "luna",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium",
+          "description": "Bounded implementation with clear requirements and required checks.",
+          "fallback": true
+        }
+      }
+    },
+    {
+      "case": "routine-validation",
+      "rep": 1,
+      "mode": "builtin",
+      "ms": 231.7233819999999,
+      "receipt": {
+        "choice": "routine",
+        "confidence": 1,
+        "probabilities": {
+          "routine": 1,
+          "standard": 0,
+          "deep": 0
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 493,
+          "output_tokens": 38
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "lane": "routine",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium"
+        }
+      }
+    },
+    {
+      "case": "routine-validation",
+      "rep": 1,
+      "mode": "custom",
+      "ms": 266.840153,
+      "receipt": {
+        "choice": "luna",
+        "confidence": 0.96,
+        "probabilities": {
+          "astra": 0,
+          "luna": 0.98,
+          "aqueduct": 0.02
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 488,
+          "output_tokens": 41
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "id": "luna",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium",
+          "description": "Bounded implementation with clear requirements and required checks.",
+          "fallback": true
+        }
+      }
+    },
+    {
+      "case": "pooled-data",
+      "rep": 0,
+      "mode": "builtin",
+      "ms": 360.973444,
+      "receipt": {
+        "choice": "standard",
+        "confidence": 0.34,
+        "probabilities": {
+          "routine": 0.43,
+          "deep": 0.01,
+          "standard": 0.56
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 653,
+          "output_tokens": 38
+        },
+        "fallback": true,
+        "reason": "low_confidence",
+        "kind": "route",
+        "route": {
+          "lane": "routine",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium"
+        }
+      }
+    },
+    {
+      "case": "pooled-data",
+      "rep": 0,
+      "mode": "custom",
+      "ms": 244.19761500000004,
+      "receipt": {
+        "choice": "luna",
+        "confidence": 0.8,
+        "probabilities": {
+          "aqueduct": 0.04,
+          "luna": 0.87,
+          "astra": 0.09
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 648,
+          "output_tokens": 41
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "id": "luna",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium",
+          "description": "Bounded implementation with clear requirements and required checks.",
+          "fallback": true
+        }
+      }
+    },
+    {
+      "case": "pooled-data",
+      "rep": 1,
+      "mode": "builtin",
+      "ms": 230.29073099999982,
+      "receipt": {
+        "choice": "standard",
+        "confidence": 0.41,
+        "probabilities": {
+          "standard": 0.6,
+          "deep": 0.01,
+          "routine": 0.39
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 653,
+          "output_tokens": 38
+        },
+        "fallback": true,
+        "reason": "low_confidence",
+        "kind": "route",
+        "route": {
+          "lane": "routine",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium"
+        }
+      }
+    },
+    {
+      "case": "pooled-data",
+      "rep": 1,
+      "mode": "custom",
+      "ms": 280.4575860000002,
+      "receipt": {
+        "choice": "luna",
+        "confidence": 0.81,
+        "probabilities": {
+          "aqueduct": 0.03,
+          "astra": 0.1,
+          "luna": 0.87
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 648,
+          "output_tokens": 41
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "id": "luna",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium",
+          "description": "Bounded implementation with clear requirements and required checks.",
+          "fallback": true
+        }
+      }
+    },
+    {
+      "case": "authorization",
+      "rep": 0,
+      "mode": "builtin",
+      "ms": 255.35904200000004,
+      "receipt": {
+        "choice": "routine",
+        "confidence": 0.97,
+        "probabilities": {
+          "routine": 0.98,
+          "deep": 0.01,
+          "standard": 0.01
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 564,
+          "output_tokens": 38
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "lane": "routine",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium"
+        }
+      }
+    },
+    {
+      "case": "authorization",
+      "rep": 0,
+      "mode": "custom",
+      "ms": 259.5280280000002,
+      "receipt": {
+        "choice": "luna",
+        "confidence": 0.95,
+        "probabilities": {
+          "luna": 0.97,
+          "astra": 0.01,
+          "aqueduct": 0.02
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 559,
+          "output_tokens": 41
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "id": "luna",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium",
+          "description": "Bounded implementation with clear requirements and required checks.",
+          "fallback": true
+        }
+      }
+    },
+    {
+      "case": "authorization",
+      "rep": 1,
+      "mode": "builtin",
+      "ms": 264.96771100000024,
+      "receipt": {
+        "choice": "routine",
+        "confidence": 0.96,
+        "probabilities": {
+          "deep": 0.02,
+          "routine": 0.98,
+          "standard": 0
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 564,
+          "output_tokens": 38
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "lane": "routine",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium"
+        }
+      }
+    },
+    {
+      "case": "authorization",
+      "rep": 1,
+      "mode": "custom",
+      "ms": 274.9492799999998,
+      "receipt": {
+        "choice": "luna",
+        "confidence": 0.93,
+        "probabilities": {
+          "luna": 0.96,
+          "astra": 0.02,
+          "aqueduct": 0.02
+        },
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 559,
+          "output_tokens": 41
+        },
+        "fallback": false,
+        "kind": "route",
+        "route": {
+          "id": "luna",
+          "model": "subscription-gpt-6-luna",
+          "provider": "csh-subscriptions",
+          "reasoning": "medium",
+          "description": "Bounded implementation with clear requirements and required checks.",
+          "fallback": true
+        }
+      }
+    }
+  ],
+  "summary": [
+    {
+      "case": "routine-validation",
+      "policy": "builtin",
+      "runs": 2,
+      "passed": 2,
+      "public_rate_equivalent_usd": 0.000316512,
+      "savings_vs_fixed_astra_percent": 98.37352517985612,
+      "mean_paired_seconds": 5.82361334,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 0
+    },
+    {
+      "case": "routine-validation",
+      "policy": "custom",
+      "runs": 2,
+      "passed": 2,
+      "public_rate_equivalent_usd": 0.000316092,
+      "savings_vs_fixed_astra_percent": 98.3756834532374,
+      "mean_paired_seconds": 5.817034489,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 0
+    },
+    {
+      "case": "pooled-data",
+      "policy": "builtin",
+      "runs": 2,
+      "passed": 2,
+      "public_rate_equivalent_usd": 0.001042752,
+      "savings_vs_fixed_astra_percent": 98.82625844214317,
+      "mean_paired_seconds": 19.6801320875,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 2
+    },
+    {
+      "case": "pooled-data",
+      "policy": "custom",
+      "runs": 2,
+      "passed": 2,
+      "public_rate_equivalent_usd": 0.001042332,
+      "savings_vs_fixed_astra_percent": 98.82673120216118,
+      "mean_paired_seconds": 19.6468276005,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 0
+    },
+    {
+      "case": "authorization",
+      "policy": "builtin",
+      "runs": 2,
+      "passed": 2,
+      "public_rate_equivalent_usd": 0.00038397600000000007,
+      "savings_vs_fixed_astra_percent": 99.00550116550116,
+      "mean_paired_seconds": 7.3271633765,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 0
+    },
+    {
+      "case": "authorization",
+      "policy": "custom",
+      "runs": 2,
+      "passed": 2,
+      "public_rate_equivalent_usd": 0.000383556,
+      "savings_vs_fixed_astra_percent": 99.00658896658896,
+      "mean_paired_seconds": 7.334238654,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 0
+    },
+    {
+      "case": "all",
+      "policy": "builtin",
+      "runs": 6,
+      "passed": 6,
+      "public_rate_equivalent_usd": 0.0017432400000000003,
+      "savings_vs_fixed_astra_percent": 98.81339595670818,
+      "mean_paired_seconds": 10.943636268,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 2
+    },
+    {
+      "case": "all",
+      "policy": "custom",
+      "runs": 6,
+      "passed": 6,
+      "public_rate_equivalent_usd": 0.00174198,
+      "savings_vs_fixed_astra_percent": 98.81425362466817,
+      "mean_paired_seconds": 10.932700247833331,
+      "routes": [
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna",
+        "subscription-gpt-6-luna"
+      ],
+      "fallbacks": 0
+    }
+  ],
+  "frozen_generation_sha256": "3c3f7bf38ef8590482ac1aa96744b212b40d5f31bc38f08e71d3f34d0960d070",
+  "live_worker": {
+    "route": {
+      "choice": "r-ef083b0c50061cb3",
+      "confidence": 0.3,
+      "probabilities": {
+        "r-f6d1503a180ad23c": 0.21,
+        "r-2477b1b28cfc4c55": 0.18,
+        "r-ef083b0c50061cb3": 0.47,
+        "r-ada334a0bea3469a": 0.14
+      },
+      "model": "jev-1.13.0",
+      "usage": {
+        "input_tokens": 577,
+        "output_tokens": 119
+      },
+      "fallback": true,
+      "reason": "low_confidence",
+      "kind": "route",
+      "route": {
+        "id": "r-ada334a0bea3469a",
+        "model": "subscription-gpt-6-luna",
+        "provider": "csh-subscriptions",
+        "reasoning": "medium",
+        "description": "Configured entry. Capabilities are unverified.",
+        "fallback": true
+      }
+    },
+    "checks": {
+      "passed": true,
+      "valid": 6,
+      "rejected": 16
+    },
+    "output": "function parseYear(value) {\n  if (value === null || value === undefined) return null;\n\n  if (typeof value === \"number\") {\n    if (Number.isSafeInteger(value) && value >= 1900 && value <= 2100) {\n      return value;\n    }\n    throw new Error(\"Invalid year\");\n  }\n\n  if (typeof value === \"string\") {\n    const trimmed = value.trim();\n    if (trimmed === \"\") return null;\n    if (/^[0-9]{4}$/.test(trimmed)) {\n      const year = Number(trimmed);\n      if (year >= 1900 && year <= 2100) return year;\n    }\n  }\n\n  throw new Error(\"Invalid year\");\n}",
+    "isolation": {
+      "temporary_profile": true,
+      "candidate_plugin": "/tmp/jev-routing-fix-20260930/plugins/jev",
+      "codex_observation": false,
+      "worker_tools": []
+    }
+  }
+}
